@@ -95,24 +95,43 @@ class _GeneralSettingsTabState extends State<_GeneralSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsNotifier>();
+
+    // Map enum to double for the slider
+    final fontWeightMap = {
+      AppFontWeight.light: 0.0,
+      AppFontWeight.normal: 1.0,
+      AppFontWeight.medium: 2.0,
+      AppFontWeight.bold: 3.0,
+    };
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text('المظهر', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
-        DropdownButtonFormField<AppFontWeight>(
-          initialValue: settings.fontWeight, // Corrected from 'value'
-          decoration: const InputDecoration(labelText: 'سماكة الخط'),
-          items: AppFontWeight.values.map((weight) {
-            return DropdownMenuItem(
-              value: weight,
-              child: Text(weight.displayName),
+        SegmentedButton<AppThemeMode>(
+          segments: AppThemeMode.values.map((mode) {
+            return ButtonSegment<AppThemeMode>(
+              value: mode,
+              label: Text(mode.displayName),
             );
           }).toList(),
-          onChanged: (AppFontWeight? newValue) {
-            if (newValue != null) {
-              settings.setFontWeight(newValue);
-            }
+          selected: {settings.appThemeMode},
+          onSelectionChanged: (Set<AppThemeMode> newSelection) {
+            settings.setAppThemeMode(newSelection.first);
+          },
+        ),
+        const SizedBox(height: 24),
+        Text('سماكة الخط', style: Theme.of(context).textTheme.titleLarge),
+        Slider(
+          value: fontWeightMap[settings.fontWeight]!,
+          min: 0,
+          max: 3,
+          divisions: 3,
+          label: settings.fontWeight.displayName,
+          onChanged: (double value) {
+            final newWeight = fontWeightMap.entries.firstWhere((entry) => entry.value == value).key;
+            settings.setFontWeight(newWeight);
           },
         ),
         const SizedBox(height: 24),

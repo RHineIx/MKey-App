@@ -9,7 +9,7 @@ class ConfigService {
   static const _tokenKey = 'github_token';
 
   // Theme Config Keys
-  static const _themeModeKey = 'theme_mode';
+  static const _themeModeKey = 'app_theme_mode'; // Changed from bool key
   static const _fontWeightKey = 'font_weight';
 
   // General App Config Keys
@@ -56,14 +56,18 @@ class ConfigService {
   }
 
   // --- Theme Config ---
-  Future<void> saveThemeMode(bool isDarkMode) async {
+  Future<void> saveThemeMode(AppThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_themeModeKey, isDarkMode);
+    await prefs.setString(_themeModeKey, mode.name);
   }
 
-  Future<bool?> loadThemeMode() async {
+  Future<AppThemeMode> loadThemeMode() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_themeModeKey);
+    final themeName = prefs.getString(_themeModeKey);
+    return AppThemeMode.values.firstWhere(
+          (e) => e.name == themeName,
+      orElse: () => AppThemeMode.system, // Default to system/monet
+    );
   }
 
   Future<void> saveFontWeight(AppFontWeight weight) async {

@@ -57,6 +57,30 @@ class MKeyApp extends StatelessWidget {
     final settingsNotifier = context.watch<SettingsNotifier>();
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+
+        final bool useDynamicColor = settingsNotifier.appThemeMode == AppThemeMode.system;
+
+        final ColorScheme lightColorScheme = useDynamicColor
+            ? lightDynamic ?? AppTheme.lightColorScheme
+            : AppTheme.lightColorScheme;
+
+        final ColorScheme darkColorScheme = useDynamicColor
+            ? darkDynamic ?? AppTheme.darkColorScheme
+            : AppTheme.darkColorScheme;
+
+        ThemeMode themeMode;
+        switch(settingsNotifier.appThemeMode) {
+          case AppThemeMode.light:
+            themeMode = ThemeMode.light;
+            break;
+          case AppThemeMode.dark:
+            themeMode = ThemeMode.dark;
+            break;
+          case AppThemeMode.system:
+            themeMode = ThemeMode.system;
+            break;
+        }
+
         return MaterialApp(
           title: 'MASTER KEY',
           debugShowCheckedModeBanner: false,
@@ -72,15 +96,15 @@ class MKeyApp extends StatelessWidget {
           locale: const Locale('ar'),
 
           theme: AppTheme.getTheme(
-            colorScheme: lightDynamic ?? AppTheme.lightColorScheme,
+            colorScheme: lightColorScheme,
             fontWeight: settingsNotifier.fontWeight.value,
           ),
           darkTheme: AppTheme.getTheme(
-            colorScheme: darkDynamic ?? AppTheme.darkColorScheme,
+            colorScheme: darkColorScheme,
             fontWeight: settingsNotifier.fontWeight.value,
             isDark: true,
           ),
-          themeMode: settingsNotifier.themeMode,
+          themeMode: themeMode,
           home: const MainShell(),
         );
       },

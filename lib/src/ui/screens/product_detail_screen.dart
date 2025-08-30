@@ -9,6 +9,7 @@ import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
+import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProductDetailScreen extends StatelessWidget {
@@ -87,8 +88,11 @@ class ProductDetailScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Symbols.edit),
+            tooltip: 'تعديل المنتج',
             onPressed: () {
-              // TODO: Navigate to Product Form Screen for editing
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => ProductFormScreen(product: product),
+              ));
             },
           )
         ],

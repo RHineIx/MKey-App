@@ -13,6 +13,7 @@ class AppTheme {
   static final ColorScheme darkColorScheme = ColorScheme.fromSeed(
     seedColor: _seedColor,
     brightness: Brightness.dark,
+    surface: const Color(0xFF121212),
   );
 
   static ThemeData getTheme({
@@ -43,19 +44,36 @@ class AppTheme {
     return ThemeData(
         useMaterial3: true,
         colorScheme: colorScheme,
+        scaffoldBackgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F7F9),
         textTheme: GoogleFonts.cairoTextTheme(weightedTextTheme),
         appBarTheme: AppBarTheme(
           centerTitle: false,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          elevation: 1,
+          shadowColor: const Color.fromARGB(26, 0, 0, 0), // Corrected: Replaced withOpacity
           titleTextStyle: GoogleFonts.cairo(
               fontWeight: FontWeight.w800,
               fontSize: 20,
               color: colorScheme.onSurface
           ),
         ),
+        cardTheme: CardThemeData(
+          elevation: 1.5,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 0.8),
+          ),
+        ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
-        dialogTheme: DialogThemeData( // Corrected from DialogTheme
+        dialogTheme: DialogThemeData(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

@@ -1,5 +1,6 @@
 // FILE: lib/src/services/github_service.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:flutter/foundation.dart';
@@ -81,9 +82,33 @@ class GithubService extends ChangeNotifier {
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
+        _fileShas[filePath] = null;
         return defaultValue;
       }
       throw Exception('Network failed for $filePath: ${e.message}');
+    }
+  }
+
+  Future<void> _saveJsonFile(String filePath, dynamic data, String commitMessage) async {
+    if (!isConfigured) throw Exception('GitHub service is not configured.');
+    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
+
+    const jsonEncoder = JsonEncoder.withIndent('  ');
+    final String prettyJson = jsonEncoder.convert(data);
+    final String content = base64.encode(utf8.encode(prettyJson));
+
+    final body = {
+      'message': commitMessage,
+      'content': content,
+      'sha': _fileShas[filePath],
+    };
+
+    final response = await _dio.put(url, data: body, options: Options(headers: authHeaders));
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      _fileShas[filePath] = response.data['content']['sha'];
+    } else {
+      throw Exception('Failed to save $filePath: Status code ${response.statusCode}');
     }
   }
 
@@ -117,5 +142,46 @@ class GithubService extends ChangeNotifier {
       return data.map((item) => ActivityLog.fromJson(item)).toList();
     }
     return [];
+  }
+
+  Future<void> saveInventory(List<Product> products) async {
+    final dataToSave = {
+      'items': products.map((p) => p.toMapForJson()).toList(),
+    };
+    await _saveJsonFile('inventory.json', dataToSave, 'Update inventory data');
+  }
+
+  Future<void> saveSales(List<Sale> sales) async {
+    final dataToSave = sales.map((s) => s.toMap()).toList();
+    await _saveJsonFile('sales.json', dataToSave, 'Update sales data');
+  }
+
+  Future<void> saveActivityLogs(List<ActivityLog> logs) async {
+    final dataToSave = logs.map((l) => l.toMap()).toList();
+    await _saveJsonFile('audit-log.json', dataToSave, 'Update activity logs');
+  }
+
+  Future<String> uploadImage(File imageFile, String sku) async {
+    if (!isConfigured) throw Exception('GitHub service is not configured.');
+
+    final fileName = 'img_${sku}_${DateTime.now().millisecondsSinceEpoch}.webp';
+    final path = 'images/$fileName';
+    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
+
+    final bytes = await imageFile.readAsBytes();
+    final String content = base64.encode(bytes);
+
+    final body = {
+      'message': 'Upload image: $fileName',
+      'content': content,
+    };
+
+    final response = await _dio.put(url, data: body, options: Options(headers: authHeaders));
+
+    if (response.statusCode == 201) {
+      return response.data['content']['path'];
+    } else {
+      throw Exception('Failed to upload image: Status code ${response.statusCode}');
+    }
   }
 }

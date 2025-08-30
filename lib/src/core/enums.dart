@@ -1,6 +1,23 @@
 // FILE: lib/src/core/enums.dart
 import 'package:flutter/material.dart';
 
+// New enum for theme selection
+enum AppThemeMode { light, dark, system }
+
+extension AppThemeModeExtension on AppThemeMode {
+  String get displayName {
+    switch (this) {
+      case AppThemeMode.light:
+        return 'فاتح';
+      case AppThemeMode.dark:
+        return 'مظلم';
+      case AppThemeMode.system:
+        return 'متجاوب';
+    }
+  }
+}
+
+
 enum AppFontWeight {
   light,
   normal,

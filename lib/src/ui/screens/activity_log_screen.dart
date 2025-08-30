@@ -40,7 +40,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<ActivityLogFilter>(
-                      value: notifier.filter,
+                      initialValue: notifier.filter, // Corrected: from 'value' to 'initialValue'
                       decoration: const InputDecoration(
                         labelText: 'فلترة حسب النشاط',
                         border: OutlineInputBorder(),

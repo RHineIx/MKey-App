@@ -63,6 +63,7 @@ class Product {
     );
   }
 
+  // For saving to local SQFlite database
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -75,7 +76,28 @@ class Product {
       'costPriceUsd': costPriceUsd,
       'sellPriceUsd': sellPriceUsd,
       'imagePath': imagePath,
-      'categories': jsonEncode(categories), // Store as JSON string
+      'categories': jsonEncode(categories),
+      'oemPartNumber': oemPartNumber,
+      'compatiblePartNumber': compatiblePartNumber,
+      'notes': notes,
+      'supplierId': supplierId,
+    };
+  }
+
+  // For saving to GitHub JSON
+  Map<String, dynamic> toMapForJson() {
+    return {
+      'id': id,
+      'name': name,
+      'sku': sku,
+      'quantity': quantity,
+      'alertLevel': alertLevel,
+      'costPriceIqd': costPriceIqd,
+      'sellPriceIqd': sellPriceIqd,
+      'costPriceUsd': costPriceUsd,
+      'sellPriceUsd': sellPriceUsd,
+      'imagePath': imagePath,
+      'categories': categories, // Save as a list
       'oemPartNumber': oemPartNumber,
       'compatiblePartNumber': compatiblePartNumber,
       'notes': notes,
@@ -90,7 +112,6 @@ class Product {
       try {
         categories = List<String>.from(jsonDecode(categoriesData));
       } catch (e) {
-        // Fallback for old comma-separated format
         categories = categoriesData.split(',').where((s) => s.isNotEmpty).toList();
       }
     }

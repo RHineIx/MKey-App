@@ -30,12 +30,13 @@ dependencies:
   google_fonts: ^6.2.1
   dynamic_color: ^1.7.0
   material_symbols_icons: ^4.2727.0
+  flutter_staggered_animations: ^1.1.1
 
   # Utility
   intl: ^0.20.2
   url_launcher: ^6.3.0
   image_picker: ^1.1.2
-  image_cropper: ^7.0.0 # UPDATED: Modern, compatible version
+  image_cropper: ^7.0.0
 
 
 dev_dependencies:
@@ -43,17 +44,27 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
+
 
 flutter_launcher_icons:
   android: "launcher_icon"
-  ios: true
+  ios: false # CHANGED: Set to false to skip iOS icon generation
+  remove_alpha_ios: true # ADDED: Good practice to remove transparency for iOS
   image_path: "assets/icon.png"
   min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#F4F7F9"
+  color_dark: "#121212"
+  image: assets/icon.png
+  android_12:
+    color: "#F4F7F9"
+    color_dark: "#121212"
+    image: assets/icon.png
 
 flutter:
   uses-material-design: true
 
-  # NOTE: Create a folder named 'assets' in your project root
-  # and place an 'icon.png' (1024x1024) file inside it.
   assets:
     - assets/

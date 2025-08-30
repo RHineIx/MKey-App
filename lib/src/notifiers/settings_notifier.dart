@@ -11,7 +11,7 @@ class SettingsNotifier extends ChangeNotifier {
   }
 
   // Theme settings
-  ThemeMode _themeMode = ThemeMode.system;
+  AppThemeMode _appThemeMode = AppThemeMode.system;
   AppFontWeight _fontWeight = AppFontWeight.normal;
 
   // General settings
@@ -20,7 +20,7 @@ class SettingsNotifier extends ChangeNotifier {
   double _exchangeRate = 1460.0;
 
   // Getters
-  ThemeMode get themeMode => _themeMode;
+  AppThemeMode get appThemeMode => _appThemeMode;
   AppFontWeight get fontWeight => _fontWeight;
   String get currentUser => _currentUser;
   String get activeCurrency => _activeCurrency;
@@ -28,10 +28,7 @@ class SettingsNotifier extends ChangeNotifier {
 
   Future<void> _loadSettings() async {
     // Load Theme
-    final isDarkMode = await _configService.loadThemeMode();
-    if (isDarkMode != null) {
-      _themeMode = isDarkMode ? ThemeMode.dark : ThemeMode.light;
-    }
+    _appThemeMode = await _configService.loadThemeMode();
     _fontWeight = await _configService.loadFontWeight();
 
     // Load General Config
@@ -43,9 +40,9 @@ class SettingsNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
-    await _configService.saveThemeMode(mode == ThemeMode.dark);
+  Future<void> setAppThemeMode(AppThemeMode mode) async {
+    _appThemeMode = mode;
+    await _configService.saveThemeMode(mode);
     notifyListeners();
   }
 

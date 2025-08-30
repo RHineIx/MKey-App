@@ -1,8 +1,10 @@
 // FILE: lib/src/ui/screens/inventory_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
+import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/category_filter_bar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/inventory_header.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/product_card.dart';
@@ -21,7 +23,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
-    // Added mounted check for safety
     if (mounted) {
       final notifier = Provider.of<InventoryNotifier>(context, listen: false);
       Future.microtask(() => _handleSync(notifier, isInitial: true));
@@ -76,8 +77,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
           children: [
             InventoryHeader(onFilterChanged: _onFilterChanged),
             CategoryFilterBar(
-              allCategories: notifier.categories,
-              selectedCategory: notifier.selectedCategory,
               onCategorySelected: (category) {
                 notifier.selectCategory(category);
                 _onFilterChanged();
@@ -89,23 +88,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ],
         ),
       ),
+      // Changed to startFloat to enforce left alignment in RTL
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_showScrollTopButton)
             FloatingActionButton.small(
+              heroTag: 'inventory_scroll_top_fab',
               onPressed: _scrollToTop,
               tooltip: 'العودة للأعلى',
               child: const Icon(Symbols.arrow_upward),
             ),
           const SizedBox(height: 16),
-          FloatingActionButton.extended(
+          FloatingActionButton(
+            heroTag: 'inventory_add_fab',
             onPressed: () {
-              // TODO: Navigate to Product Form Screen for adding
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => const ProductFormScreen(),
+              ));
             },
             tooltip: 'إضافة منتج جديد',
-            icon: const Icon(Symbols.add),
-            label: const Text('إضافة منتج'),
+            child: const Icon(Symbols.add),
           ),
         ],
       ),
@@ -131,20 +135,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
       return const Center(child: Text('لم يتم العثور على منتجات.'));
     }
 
-    return GridView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(12.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12.0,
-        mainAxisSpacing: 12.0,
-        childAspectRatio: 0.7,
+    return AnimationLimiter(
+      child: GridView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(12.0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12.0,
+          mainAxisSpacing: 12.0,
+          childAspectRatio: 0.7,
+        ),
+        itemCount: notifier.filteredProducts.length,
+        itemBuilder: (context, index) {
+          final product = notifier.filteredProducts[index];
+          return AnimationConfiguration.staggeredGrid(
+            position: index,
+            duration: const Duration(milliseconds: 300),
+            columnCount: 2,
+            child: SlideAnimation(
+              verticalOffset: 30.0,
+              child: FadeInAnimation(
+                child: ProductCard(product: product),
+              ),
+            ),
+          );
+        },
       ),
-      itemCount: notifier.filteredProducts.length,
-      itemBuilder: (context, index) {
-        final product = notifier.filteredProducts[index];
-        return ProductCard(product: product);
-      },
     );
   }
 }

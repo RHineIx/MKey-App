@@ -39,6 +39,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       ),
       body: _buildBody(notifier),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'suppliers_add_fab', // Unique tag
         onPressed: () {
           // TODO: Implement Add/Edit Supplier Dialog
         },

@@ -1,8 +1,11 @@
 // FILE: lib/src/notifiers/inventory_notifier.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:rhineix_mkey_app/src/core/database_helper.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
+import 'package:rhineix_mkey_app/src/models/sale_model.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class InventoryNotifier extends ChangeNotifier {
@@ -30,6 +33,7 @@ class InventoryNotifier extends ChangeNotifier {
   List<String> get categories => _allCategories;
   String? get selectedCategory => _selectedCategory;
   String? get error => _error;
+  bool get hasUncategorizedItems => _allProducts.any((p) => p.categories.isEmpty);
 
   void _configChanged() {
     syncFromNetwork();
@@ -76,6 +80,173 @@ class InventoryNotifier extends ChangeNotifier {
     }
   }
 
+  Future<void> addProduct(Product product, File? imageFile) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      String? imagePath;
+      if (imageFile != null) {
+        imagePath = await _githubService.uploadImage(imageFile, product.sku);
+      }
+
+      final newProduct = Product(
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.quantity,
+        alertLevel: product.alertLevel,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceIqd: product.sellPriceIqd,
+        costPriceUsd: product.costPriceUsd,
+        sellPriceUsd: product.sellPriceUsd,
+        notes: product.notes,
+        imagePath: imagePath,
+        categories: product.categories,
+        oemPartNumber: product.oemPartNumber,
+        compatiblePartNumber: product.compatiblePartNumber,
+        supplierId: product.supplierId,
+      );
+
+      _allProducts.add(newProduct);
+      await _dbHelper.batchUpdateProducts(_allProducts);
+      await _githubService.saveInventory(_allProducts);
+      await loadProductsFromDb();
+
+    } catch(e) {
+      await loadProductsFromDb();
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateProduct(Product product, File? imageFile) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      String? imagePath = product.imagePath;
+      if (imageFile != null) {
+        imagePath = await _githubService.uploadImage(imageFile, product.sku);
+      }
+
+      final updatedProduct = Product(
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.quantity,
+        alertLevel: product.alertLevel,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceIqd: product.sellPriceIqd,
+        costPriceUsd: product.costPriceUsd,
+        sellPriceUsd: product.sellPriceUsd,
+        notes: product.notes,
+        imagePath: imagePath,
+        categories: product.categories,
+        oemPartNumber: product.oemPartNumber,
+        compatiblePartNumber: product.compatiblePartNumber,
+        supplierId: product.supplierId,
+      );
+
+      final index = _allProducts.indexWhere((p) => p.id == product.id);
+      if (index != -1) {
+        _allProducts[index] = updatedProduct;
+        await _dbHelper.batchUpdateProducts(_allProducts);
+        await _githubService.saveInventory(_allProducts);
+        await loadProductsFromDb();
+      }
+    } catch(e) {
+      await loadProductsFromDb();
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> recordSale(Product product, int quantity, double priceIqd) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // 1. Update product quantity
+      final updatedProduct = Product(
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          quantity: product.quantity - quantity, // Decrement quantity
+          alertLevel: product.alertLevel,
+          costPriceIqd: product.costPriceIqd,
+          sellPriceIqd: product.sellPriceIqd,
+          costPriceUsd: product.costPriceUsd,
+          sellPriceUsd: product.sellPriceUsd,
+          notes: product.notes,
+          imagePath: product.imagePath,
+          categories: product.categories,
+          oemPartNumber: product.oemPartNumber,
+          compatiblePartNumber: product.compatiblePartNumber,
+          supplierId: product.supplierId);
+
+      final index = _allProducts.indexWhere((p) => p.id == product.id);
+      if (index != -1) {
+        _allProducts[index] = updatedProduct;
+      }
+
+      // 2. Create sale record
+      final sale = Sale(
+        saleId: 'sale_${DateTime.now().millisecondsSinceEpoch}',
+        itemId: product.id,
+        itemName: product.name,
+        quantitySold: quantity,
+        sellPriceIqd: priceIqd,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceUsd: 0, // TODO: Add currency conversion
+        costPriceUsd: product.costPriceUsd,
+        saleDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        timestamp: DateTime.now().toIso8601String(),
+      );
+
+      // 3. Save to local DB
+      final allSales = await _dbHelper.getAllSales();
+      allSales.add(sale);
+      await _dbHelper.batchUpdateSales(allSales);
+      await _dbHelper.batchUpdateProducts(_allProducts);
+
+      // 4. Sync to remote
+      await _githubService.saveInventory(_allProducts);
+      await _githubService.saveSales(allSales);
+
+      // 5. Reload all data
+      await loadProductsFromDb();
+
+    } catch (e) {
+      await loadProductsFromDb(); // Revert on failure
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteProduct(String productId) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _allProducts.removeWhere((p) => p.id == productId);
+      await _dbHelper.batchUpdateProducts(_allProducts);
+      await _githubService.saveInventory(_allProducts);
+      await loadProductsFromDb();
+    } catch (e) {
+      await loadProductsFromDb(); // Revert on failure
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   void _extractCategories() {
     final uniqueCategories =
     _allProducts.expand((p) => p.categories).toSet().toList();
@@ -86,7 +257,9 @@ class InventoryNotifier extends ChangeNotifier {
   void _applyFiltersAndSort() {
     List<Product> tempProducts = List.from(_allProducts);
 
-    if (_selectedCategory != null) {
+    if (_selectedCategory == '_uncategorized_') {
+      tempProducts = tempProducts.where((p) => p.categories.isEmpty).toList();
+    } else if (_selectedCategory != null) {
       tempProducts = tempProducts
           .where((p) => p.categories.contains(_selectedCategory))
           .toList();
