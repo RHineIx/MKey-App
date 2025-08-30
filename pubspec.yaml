@@ -46,6 +46,8 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.0
 
+flutter_launcher_name:
+  name: "MKey App"
 
 flutter_launcher_icons:
   android: "launcher_icon"
