@@ -24,24 +24,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     final notifier = Provider.of<InventoryNotifier>(context, listen: false);
-    notifier.fetchInventory(onFilterChanged: _onFilterChanged);
+    // On first load, it will use the already-loaded DB data.
+    // Then, trigger a network sync in the background.
+    Future.microtask(() => _handleSync(notifier, isInitial: true));
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
         _loadMoreItems();
       }
       if (_scrollController.position.pixels > 400) {
-        if (!_showScrollTopButton) {
-          setState(() {
-            _showScrollTopButton = true;
-          });
-        }
+        if (!_showScrollTopButton) setState(() { _showScrollTopButton = true; });
       } else {
-        if (_showScrollTopButton) {
-          setState(() {
-            _showScrollTopButton = false;
-          });
-        }
+        if (_showScrollTopButton) setState(() { _showScrollTopButton = false; });
       }
     });
   }
@@ -50,6 +44,21 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // New central method for handling sync and showing feedback
+  Future<void> _handleSync(InventoryNotifier notifier, {bool isInitial = false}) async {
+    _onFilterChanged(); // Reset pagination
+    final String? errorMessage = await notifier.syncFromNetwork();
+
+    if (mounted && errorMessage != null && !isInitial) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('فشل التحديث: $errorMessage'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _loadMoreItems() {
@@ -65,28 +74,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _scrollToTop() {
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
+    _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
   }
 
   void _onFilterChanged() {
-    if (mounted) {
-      setState(() {
-        _itemsToShow = _pageSize;
-      });
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    }
+    if (mounted) setState(() { _itemsToShow = _pageSize; });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   void _navigateToSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const SettingsScreen()),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SettingsScreen()));
   }
 
   @override
@@ -98,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Consumer<InventoryNotifier>(
             builder: (context, notifier, child) => IconButton(
               icon: const Icon(Icons.sync),
-              onPressed: notifier.isLoading ? null : () => notifier.fetchInventory(onFilterChanged: _onFilterChanged),
+              onPressed: notifier.isLoading ? null : () => _handleSync(notifier),
               tooltip: 'تحديث',
             ),
           ),
@@ -114,15 +111,31 @@ class _HomeScreenState extends State<HomeScreen> {
           if (notifier.isLoading && notifier.products.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (notifier.error != null) {
-            // Corrected: Added const here
-            return const Center(child: Text('Error placeholder'));
+
+          // Show full-screen error ONLY if DB loading failed (products list is empty and error exists)
+          if (notifier.products.isEmpty && notifier.error != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('حدث خطأ:\n${notifier.error}', textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _navigateToSettings,
+                      child: const Text('الذهاب إلى الإعدادات'),
+                    )
+                  ],
+                ),
+              ),
+            );
           }
 
           final productsToDisplay = notifier.filteredProducts.take(_itemsToShow).toList();
 
           return RefreshIndicator(
-            onRefresh: () async => notifier.fetchInventory(onFilterChanged: _onFilterChanged),
+            onRefresh: () async => _handleSync(notifier),
             child: Column(
               children: [
                 InventoryHeader(onFilterChanged: _onFilterChanged),
@@ -169,9 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           FloatingActionButton.extended(
-            onPressed: () {
-              // TODO: Implement Add Product Action
-            },
+            onPressed: () { /* TODO: Implement Add Product Action */ },
             tooltip: 'إضافة منتج جديد',
             icon: const Icon(Symbols.add),
             label: const Text('إضافة منتج'),

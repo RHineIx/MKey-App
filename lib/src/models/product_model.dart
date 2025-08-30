@@ -1,4 +1,3 @@
-// Helper function to safely parse a value that could be a String, int, or double.
 double? _tryParseDouble(dynamic value) {
   if (value == null) return null;
   if (value is double) return value;
@@ -13,13 +12,13 @@ class Product {
   final String sku;
   final int? quantity;
   final double? sellPriceIqd;
-  final double? costPriceIqd; // New field
+  final double? costPriceIqd;
   final String? imagePath;
   final List<String>? categories;
   final int? alertLevel;
-  final String? oemPartNumber; // New field
-  final String? compatiblePartNumber; // New field
-  final String? notes; // New field
+  final String? oemPartNumber;
+  final String? compatiblePartNumber;
+  final String? notes;
 
   Product({
     required this.id,
@@ -55,13 +54,51 @@ class Product {
       sku: json['sku'] ?? 'no-sku',
       quantity: json['quantity'],
       sellPriceIqd: _tryParseDouble(json['sellPriceIqd']),
-      costPriceIqd: _tryParseDouble(json['costPriceIqd']), // Read new field
+      costPriceIqd: _tryParseDouble(json['costPriceIqd']),
       imagePath: json['imagePath'],
       categories: categories,
       alertLevel: json['alertLevel'],
-      oemPartNumber: json['oemPartNumber'], // Read new field
-      compatiblePartNumber: json['compatiblePartNumber'], // Read new field
-      notes: json['notes'], // Read new field
+      oemPartNumber: json['oemPartNumber'],
+      compatiblePartNumber: json['compatiblePartNumber'],
+      notes: json['notes'],
+    );
+  }
+
+  // --- Methods for Database Interaction ---
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'sku': sku,
+      'quantity': quantity,
+      'sellPriceIqd': sellPriceIqd,
+      'costPriceIqd': costPriceIqd,
+      'imagePath': imagePath,
+      'categories': categories?.join(','), // Store list as comma-separated string
+      'alertLevel': alertLevel,
+      'oemPartNumber': oemPartNumber,
+      'compatiblePartNumber': compatiblePartNumber,
+      'notes': notes,
+    };
+  }
+
+  factory Product.fromMap(Map<String, dynamic> map) {
+    final categoriesString = map['categories'] as String?;
+    return Product(
+      id: map['id'] ?? 'no-id',
+      name: map['name'] ?? '',
+      sku: map['sku'] ?? '',
+      quantity: map['quantity'],
+      sellPriceIqd: map['sellPriceIqd'],
+      costPriceIqd: map['costPriceIqd'],
+      imagePath: map['imagePath'],
+      categories: (categoriesString?.isNotEmpty ?? false)
+          ? categoriesString!.split(',')
+          : [],
+      alertLevel: map['alertLevel'],
+      oemPartNumber: map['oemPartNumber'],
+      compatiblePartNumber: map['compatiblePartNumber'],
+      notes: map['notes'],
     );
   }
 }

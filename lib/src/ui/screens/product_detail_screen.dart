@@ -1,6 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// We are telling Dart to import everything from the intl package EXCEPT for TextDirection.
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
@@ -65,7 +65,7 @@ class ProductDetailScreen extends StatelessWidget {
         title: Text(product.name),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -75,27 +75,28 @@ class ProductDetailScreen extends StatelessWidget {
               child: AspectRatio(
                 aspectRatio: 1 / 1,
                 child: (product.imagePath != null && product.imagePath!.isNotEmpty)
-                    ? Image.network(
-                  githubService.getImageUrl(product.imagePath!),
-                  headers: githubService.authHeaders,
+                    ? CachedNetworkImage(
+                  imageUrl: githubService.getImageUrl(product.imagePath!),
+                  httpHeaders: githubService.authHeaders,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Symbols.broken_image, size: 64),
+                  placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                  errorWidget: (context, url, error) => const Center(child: Icon(Symbols.broken_image, size: 64)),
                 )
                     : Icon(Symbols.inventory_2, size: 64, color: colorScheme.onSurface.withAlpha(128)),
               ),
             ),
             const SizedBox(height: 16),
-
             Text(product.name, style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
 
-            Directionality(
-              // Corrected: Use TextDirection.ltr with a capital 'L' and small 'tr'
+            // Corrected: Add textDirection directly to the Text widget
+            Text(
+              'SKU: ${product.sku}',
+              style: textTheme.bodyLarge?.copyWith(color: textTheme.bodySmall?.color),
               textDirection: TextDirection.ltr,
-              child: Text('SKU: ${product.sku}', style: textTheme.bodyLarge?.copyWith(color: textTheme.bodySmall?.color)),
             ),
-            const SizedBox(height: 8),
 
+            const SizedBox(height: 8),
             if (product.categories != null && product.categories!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
@@ -105,7 +106,6 @@ class ProductDetailScreen extends StatelessWidget {
                 ),
               ),
             const Divider(height: 32),
-
             _buildSection(
                 title: 'أرقام القطع',
                 isVisible: (product.oemPartNumber?.isNotEmpty ?? false) || compatibleParts.isNotEmpty,
@@ -123,17 +123,12 @@ class ProductDetailScreen extends StatelessWidget {
                       const SizedBox(height: 8),
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 8.0,
-                          runSpacing: 8.0,
-                          children: compatibleParts.map((p) => _buildPartNumberChip(context, p)).toList(),
-                        ),
+                        child: Wrap(spacing: 8.0, runSpacing: 8.0, children: compatibleParts.map((p) => _buildPartNumberChip(context, p)).toList()),
                       ),
                     ],
                   ],
                 )
             ),
-
             _buildSection(
                 title: 'التسعير والمخزون',
                 content: Card(
@@ -169,14 +164,10 @@ class ProductDetailScreen extends StatelessWidget {
                   ),
                 )
             ),
-
             _buildSection(
               title: 'ملاحظات',
               isVisible: product.notes?.trim().isNotEmpty ?? false,
-              content: Text(
-                _stripHtmlIfNeeded(product.notes ?? ''),
-                style: textTheme.bodyLarge,
-              ),
+              content: Text(_stripHtmlIfNeeded(product.notes ?? ''), style: textTheme.bodyLarge),
             ),
           ],
         ),
