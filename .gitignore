@@ -1,0 +1,49 @@
+# Flutter & Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# Build outputs
+build/
+android/app/build/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+macos/Pods/
+macos/Flutter/Flutter-Debug.xcconfig
+macos/Flutter/Flutter-Release.xcconfig
+linux/flutter/
+windows/flutter/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# Gradle
+.gradle/
+**/build/
+android/.gradle/
+android/.kotlin/
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+DerivedData/
+
+# VS Code
+.vscode/
+
+# Misc
+*.log
+*.lock
+*.tmp
+*.temp
+*.swp
+*.DS_Store
+
+# Key/credentials (تأكد إنك تحفظها بمكان آمن)
+*.jks
+*.keystore
+key.properties
