@@ -1,38 +1,36 @@
-name: Flutter Release Build
+name: Build Flutter APK (arm64)
 
 on:
-  push:
-    branches:
-      - main  # يمكنك تغييره للفرع الذي تريد البناء منه
-  workflow_dispatch:
+  workflow_dispatch:   # يدوي فقط
 
 jobs:
-  build_release:
-    name: Build ARM64 Release APK
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. جلب الكود
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      # 2. تثبيت Flutter
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
         with:
-          flutter-version: 'stable'
+          channel: stable
+          version: 3.35.2   # نفس النسخة عندك محلياً
 
-      # 3. تحديث packages
-      - name: Get dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      # 4. بناء نسخة Release
-      - name: Build Release APK
+      - name: Analyze code
+        run: flutter analyze || true
+
+      - name: Run tests
+        run: flutter test || true
+
+      - name: Build release APK (arm64 only)
         run: flutter build apk --release --target-platform=android-arm64
 
-      # 5. رفع الـ APK كـ artifact
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v3
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release-arm64
+          name: app-arm64-release
           path: build/app/outputs/flutter-apk/app-release.apk
