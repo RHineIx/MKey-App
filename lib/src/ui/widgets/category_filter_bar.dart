@@ -1,3 +1,4 @@
+// FILE: lib/src/ui/widgets/category_filter_bar.dart
 import 'package:flutter/material.dart';
 
 class CategoryFilterBar extends StatelessWidget {
@@ -15,6 +16,9 @@ class CategoryFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categoriesToShow = <String>['الكل', ...allCategories];
+    if (allCategories.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return SizedBox(
       height: 50,
@@ -24,7 +28,9 @@ class CategoryFilterBar extends StatelessWidget {
         itemCount: categoriesToShow.length,
         itemBuilder: (context, index) {
           final category = categoriesToShow[index];
-          final isSelected = (selectedCategory == null && category == 'الكل') || (selectedCategory == category);
+          final isSelected =
+              (selectedCategory == null && category == 'الكل') ||
+                  (selectedCategory == category);
 
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0),

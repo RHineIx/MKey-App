@@ -1,6 +1,6 @@
+// FILE: lib/src/core/enums.dart
 import 'package:flutter/material.dart';
 
-// An enum to represent the available font weights
 enum AppFontWeight {
   light,
   normal,
@@ -8,7 +8,6 @@ enum AppFontWeight {
   bold,
 }
 
-// Extension to get the actual FontWeight value and a display name
 extension AppFontWeightExtension on AppFontWeight {
   FontWeight get value {
     switch (this) {
@@ -36,3 +35,15 @@ extension AppFontWeightExtension on AppFontWeight {
     }
   }
 }
+
+enum SortOption {
+  defaults,
+  nameAsc,
+  quantityAsc,
+  quantityDesc,
+  dateDesc,
+}
+
+enum DashboardPeriod { today, week, month }
+
+enum ActivityLogFilter { all, sale, quantity, lifecycle, other }

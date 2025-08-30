@@ -1,8 +1,9 @@
+// FILE: lib/src/ui/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:rhineix_workshop_app/main.dart';
-import 'package:rhineix_workshop_app/src/core/enums.dart';
-import 'package:rhineix_workshop_app/src/services/github_service.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
+import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,12 +12,142 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('الإعدادات'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'عامة', icon: Icon(Icons.tune)),
+            Tab(text: 'المزامنة', icon: Icon(Icons.cloud_sync)),
+            Tab(text: 'البيانات', icon: Icon(Icons.storage)),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _GeneralSettingsTab(),
+          _SyncSettingsTab(),
+          _DataManagementTab(),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Tabs ---
+
+class _GeneralSettingsTab extends StatefulWidget {
+  @override
+  State<_GeneralSettingsTab> createState() => _GeneralSettingsTabState();
+}
+
+class _GeneralSettingsTabState extends State<_GeneralSettingsTab> {
+  late final TextEditingController _userController;
+  late final TextEditingController _exchangeRateController;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<SettingsNotifier>();
+    _userController = TextEditingController(text: settings.currentUser);
+    _exchangeRateController = TextEditingController(text: settings.exchangeRate.toString());
+  }
+
+  @override
+  void dispose() {
+    _userController.dispose();
+    _exchangeRateController.dispose();
+    super.dispose();
+  }
+
+  void _saveSettings() {
+    final settings = context.read<SettingsNotifier>();
+    settings.saveGeneralConfig(
+      currentUser: _userController.text,
+      activeCurrency: settings.activeCurrency,
+      exchangeRate: double.tryParse(_exchangeRateController.text) ?? 1460.0,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم حفظ الإعدادات العامة'), backgroundColor: Colors.green),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsNotifier>();
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('المظهر', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<AppFontWeight>(
+          initialValue: settings.fontWeight, // Corrected from 'value'
+          decoration: const InputDecoration(labelText: 'سماكة الخط'),
+          items: AppFontWeight.values.map((weight) {
+            return DropdownMenuItem(
+              value: weight,
+              child: Text(weight.displayName),
+            );
+          }).toList(),
+          onChanged: (AppFontWeight? newValue) {
+            if (newValue != null) {
+              settings.setFontWeight(newValue);
+            }
+          },
+        ),
+        const SizedBox(height: 24),
+        Text('إعدادات المستخدم', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _userController,
+          decoration: const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _exchangeRateController,
+          decoration: const InputDecoration(labelText: 'سعر صرف الدولار'),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: _saveSettings,
+          child: const Text('حفظ الإعدادات العامة'),
+        )
+      ],
+    );
+  }
+}
+
+class _SyncSettingsTab extends StatefulWidget {
+  @override
+  State<_SyncSettingsTab> createState() => _SyncSettingsTabState();
+}
+
+class _SyncSettingsTabState extends State<_SyncSettingsTab> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _usernameController;
   late final TextEditingController _repoController;
   late final TextEditingController _tokenController;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -37,103 +168,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (_formKey.currentState!.validate()) {
-      setState(() { _isLoading = true; });
       final githubService = context.read<GithubService>();
-      try {
-        await githubService.saveConfig(
-          _usernameController.text.trim(),
-          _repoController.text.trim(),
-          _tokenController.text.trim(),
+      await githubService.saveConfig(
+        _usernameController.text.trim(),
+        _repoController.text.trim(),
+        _tokenController.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ إعدادات المزامنة'), backgroundColor: Colors.green),
         );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم حفظ الإعدادات بنجاح'), backgroundColor: Colors.green),
-          );
-          Navigator.of(context).pop();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('فشل حفظ الإعدادات: $e'), backgroundColor: Colors.red),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() { _isLoading = false; });
-        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeSettings = context.watch<ThemeSettingsNotifier>();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('الإعدادات'),
-      ),
-      body: SingleChildScrollView(
+    return Form(
+      key: _formKey,
+      child: ListView(
         padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('إعدادات المزامنة', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'اسم مستخدم GitHub', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'هذا الحقل مطلوب' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _repoController,
-                decoration: const InputDecoration(labelText: 'اسم المستودع (Repository)', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'هذا الحقل مطلوب' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _tokenController,
-                decoration: const InputDecoration(labelText: 'مفتاح الوصول الشخصي (PAT)', border: OutlineInputBorder()),
-                obscureText: true,
-                validator: (value) => value!.isEmpty ? 'هذا الحقل مطلوب' : null,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveSettings,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('حفظ إعدادات المزامنة'),
-              ),
-              const Divider(height: 40),
-
-              Text('إعدادات المظهر', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-
-              // Use initialValue instead of the deprecated value
-              DropdownButtonFormField<AppFontWeight>(
-                initialValue: themeSettings.fontWeight,
-                decoration: const InputDecoration(
-                  labelText: 'سماكة الخط',
-                  border: OutlineInputBorder(),
-                ),
-                items: AppFontWeight.values.map((weight) {
-                  return DropdownMenuItem(
-                    value: weight,
-                    child: Text(weight.displayName),
-                  );
-                }).toList(),
-                onChanged: (AppFontWeight? newValue) {
-                  if (newValue != null) {
-                    themeSettings.setFontWeight(newValue);
-                  }
-                },
-              ),
-            ],
+        children: [
+          TextFormField(
+            controller: _usernameController,
+            decoration: const InputDecoration(labelText: 'اسم مستخدم GitHub'),
+            validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
           ),
-        ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _repoController,
+            decoration: const InputDecoration(labelText: 'اسم المستودع (Repository)'),
+            validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _tokenController,
+            decoration: const InputDecoration(labelText: 'مفتاح الوصول الشخصي (PAT)'),
+            obscureText: true,
+            validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _saveSettings,
+            child: const Text('حفظ إعدادات المزامنة'),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _DataManagementTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.archive_outlined),
+          title: const Text('أرشفة المبيعات القديمة'),
+          subtitle: const Text('نقل المبيعات الأقدم من 3 أشهر للأرشيف'),
+          onTap: () {
+            // TODO: Implement archiving
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.cleaning_services_outlined),
+          title: const Text('تنظيف الصور غير المستخدمة'),
+          subtitle: const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
+          onTap: () {
+            // TODO: Implement image cleanup
+          },
+        ),
+        const Divider(height: 24),
+        ListTile(
+          leading: const Icon(Icons.download_outlined),
+          title: const Text('تنزيل نسخة احتياطية محلية'),
+          onTap: () {
+            // TODO: Implement backup download
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.upload_outlined),
+          title: const Text('استعادة من نسخة احتياطية'),
+          onTap: () {
+            // TODO: Implement restore from backup
+          },
+        ),
+      ],
     );
   }
 }

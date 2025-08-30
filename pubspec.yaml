@@ -1,5 +1,6 @@
-name: rhineix_workshop_app
-description: "A new Flutter project."
+// FILE: pubspec.yaml
+name: rhineix_mkey_app
+description: "An inventory management app for MKey workshop."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,24 +10,50 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations: # Required for RTL support
+    sdk: flutter
 
+  # State Management
   provider: ^6.1.2
+
+  # Local Storage
   shared_preferences: ^2.2.3
-  material_symbols_icons: ^4.2727.0
-  intl: ^0.19.0
-  dynamic_color: ^1.7.0
-  cupertino_icons: ^1.0.6
-  google_fonts: ^6.2.1
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  # Networking
   dio: ^5.4.3+1
   dio_cache_interceptor: ^3.5.0
   cached_network_image: ^3.3.1
-  sqflite: ^2.3.3
-  path: ^1.9.0
+
+  # UI & Theming
+  google_fonts: ^6.2.1
+  dynamic_color: ^1.7.0
+  material_symbols_icons: ^4.2727.0
+
+  # Utility
+  intl: ^0.20.2
+  url_launcher: ^6.3.0
+  image_picker: ^1.1.2
+  image_cropper: ^7.0.0 # UPDATED: Modern, compatible version
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
+
+  # NOTE: Create a folder named 'assets' in your project root
+  # and place an 'icon.png' (1024x1024) file inside it.
+  assets:
+    - assets/

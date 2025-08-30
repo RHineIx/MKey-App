@@ -1,17 +1,17 @@
+// FILE: lib/src/notifiers/inventory_notifier.dart
 import 'package:flutter/material.dart';
-import 'package:rhineix_workshop_app/src/core/database_helper.dart';
-import 'package:rhineix_workshop_app/src/models/product_model.dart';
-import 'package:rhineix_workshop_app/src/services/github_service.dart';
-
-enum SortOption { defaults, nameAsc, quantityAsc, quantityDesc }
+import 'package:rhineix_mkey_app/src/core/database_helper.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
+import 'package:rhineix_mkey_app/src/models/product_model.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class InventoryNotifier extends ChangeNotifier {
   final GithubService _githubService;
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   InventoryNotifier(this._githubService) {
-    _githubService.addListener(syncFromNetwork); // Sync when config changes
-    loadProductsFromDb(); // Load local data immediately on startup
+    _githubService.addListener(_configChanged);
+    loadProductsFromDb();
   }
 
   bool _isLoading = false;
@@ -39,7 +39,6 @@ class InventoryNotifier extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       _allProducts = await _dbHelper.getAllProducts();
       _extractCategories();
@@ -67,46 +66,62 @@ class InventoryNotifier extends ChangeNotifier {
     try {
       final networkProducts = await _githubService.fetchInventory();
       await _dbHelper.batchUpdateProducts(networkProducts);
-      await loadProductsFromDb(); // Reload from DB to show the latest data
-      _isLoading = false;
-      notifyListeners();
-      return null; // Success
+      await loadProductsFromDb();
+      return null;
     } catch (e) {
-      // On failure, keep the old data, just stop loading and report error message
       _isLoading = false;
+      _error = e.toString();
       notifyListeners();
-      return e.toString(); // Return error message
+      return e.toString();
     }
   }
 
   void _extractCategories() {
-    final uniqueCategories = _allProducts.expand((p) => p.categories ?? []).toSet().cast<String>().toList();
+    final uniqueCategories =
+    _allProducts.expand((p) => p.categories).toSet().toList();
     uniqueCategories.sort();
     _allCategories = uniqueCategories;
   }
 
   void _applyFiltersAndSort() {
     List<Product> tempProducts = List.from(_allProducts);
+
     if (_selectedCategory != null) {
-      tempProducts = tempProducts.where((p) => p.categories?.contains(_selectedCategory) ?? false).toList();
+      tempProducts = tempProducts
+          .where((p) => p.categories.contains(_selectedCategory))
+          .toList();
     }
+
     if (_currentSearchQuery.isNotEmpty) {
       final lowerCaseQuery = _currentSearchQuery.toLowerCase();
       tempProducts = tempProducts.where((product) {
-        final nameMatch = product.name.toLowerCase().contains(lowerCaseQuery);
-        final skuMatch = product.sku.toLowerCase().contains(lowerCaseQuery);
-        return nameMatch || skuMatch;
+        return [
+          product.name,
+          product.sku,
+          product.notes,
+          product.oemPartNumber,
+          product.compatiblePartNumber
+        ]
+            .any((field) => field?.toLowerCase().contains(lowerCaseQuery) ?? false);
       }).toList();
     }
+
     switch (_currentSortOption) {
       case SortOption.nameAsc:
         tempProducts.sort((a, b) => a.name.compareTo(b.name));
         break;
       case SortOption.quantityAsc:
-        tempProducts.sort((a, b) => (a.quantity ?? 0).compareTo(b.quantity ?? 0));
+        tempProducts.sort((a, b) => a.quantity.compareTo(b.quantity));
         break;
       case SortOption.quantityDesc:
-        tempProducts.sort((a, b) => (b.quantity ?? 0).compareTo(a.quantity ?? 0));
+        tempProducts.sort((a, b) => b.quantity.compareTo(a.quantity));
+        break;
+      case SortOption.dateDesc:
+        tempProducts.sort((a, b) {
+          final timeA = int.tryParse(a.id.split('_').last) ?? 0;
+          final timeB = int.tryParse(b.id.split('_').last) ?? 0;
+          return timeB.compareTo(timeA);
+        });
         break;
       case SortOption.defaults:
         break;
@@ -130,6 +145,14 @@ class InventoryNotifier extends ChangeNotifier {
     _currentSortOption = option;
     _applyFiltersAndSort();
     notifyListeners();
+  }
+
+  Product? getProductById(String id) {
+    try {
+      return _allProducts.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 
   @override

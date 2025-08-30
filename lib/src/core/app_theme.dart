@@ -1,3 +1,4 @@
+// FILE: lib/src/core/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -14,7 +15,6 @@ class AppTheme {
     brightness: Brightness.dark,
   );
 
-  // A single method to generate a theme with a dynamic font weight
   static ThemeData getTheme({
     required ColorScheme colorScheme,
     required FontWeight fontWeight,
@@ -22,7 +22,6 @@ class AppTheme {
   }) {
     var textTheme = isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
 
-    // Apply the selected font weight to all text styles
     TextTheme weightedTextTheme = textTheme.copyWith(
       displayLarge: textTheme.displayLarge?.copyWith(fontWeight: fontWeight),
       displayMedium: textTheme.displayMedium?.copyWith(fontWeight: fontWeight),
@@ -42,9 +41,25 @@ class AppTheme {
     );
 
     return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      textTheme: GoogleFonts.cairoTextTheme(weightedTextTheme),
+        useMaterial3: true,
+        colorScheme: colorScheme,
+        textTheme: GoogleFonts.cairoTextTheme(weightedTextTheme),
+        appBarTheme: AppBarTheme(
+          centerTitle: false,
+          titleTextStyle: GoogleFonts.cairo(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              color: colorScheme.onSurface
+          ),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+        ),
+        dialogTheme: DialogThemeData( // Corrected from DialogTheme
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        )
     );
   }
 }

@@ -1,11 +1,12 @@
+// FILE: lib/src/ui/widgets/inventory_header.dart
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
-import 'package:rhineix_workshop_app/src/notifiers/inventory_notifier.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
+import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 
 class InventoryHeader extends StatefulWidget {
   final VoidCallback onFilterChanged;
-
   const InventoryHeader({
     super.key,
     required this.onFilterChanged,
@@ -28,7 +29,6 @@ class _InventoryHeaderState extends State<InventoryHeader> {
   Widget build(BuildContext context) {
     final notifier = context.read<InventoryNotifier>();
     final hintColor = Theme.of(context).hintColor;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 4.0),
       child: Row(
@@ -44,7 +44,6 @@ class _InventoryHeaderState extends State<InventoryHeader> {
               decoration: InputDecoration(
                 hintText: 'ابحث في المنتجات...',
                 prefixIcon: const Icon(Symbols.search),
-                // --- Clear search button ---
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                   icon: const Icon(Symbols.close),
@@ -56,23 +55,34 @@ class _InventoryHeaderState extends State<InventoryHeader> {
                   },
                 )
                     : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
                 filled: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // --- Sort Button ---
           PopupMenuButton<SortOption>(
             onSelected: (option) {
               notifier.sortProducts(option);
               widget.onFilterChanged();
             },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
-              const PopupMenuItem(value: SortOption.defaults, child: Text('فرز افتراضي')),
-              const PopupMenuItem(value: SortOption.nameAsc, child: Text('الاسم (أ - ي)')),
-              const PopupMenuItem(value: SortOption.quantityAsc, child: Text('الكمية (الأقل أولاً)')),
-              const PopupMenuItem(value: SortOption.quantityDesc, child: Text('الكمية (الأكثر أولاً)')),
+            itemBuilder: (BuildContext context) =>
+            <PopupMenuEntry<SortOption>>[
+              const PopupMenuItem(
+                  value: SortOption.defaults, child: Text('فرز افتراضي')),
+              const PopupMenuItem(
+                  value: SortOption.dateDesc, child: Text('الأحدث أولاً')),
+              const PopupMenuItem(
+                  value: SortOption.nameAsc, child: Text('الاسم (أ - ي)')),
+              const PopupMenuItem(
+                  value: SortOption.quantityAsc,
+                  child: Text('الكمية (الأقل أولاً)')),
+              const PopupMenuItem(
+                  value: SortOption.quantityDesc,
+                  child: Text('الكمية (الأكثر أولاً)')),
             ],
             icon: Icon(Symbols.sort, color: hintColor),
             tooltip: 'فرز',
