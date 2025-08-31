@@ -47,33 +47,48 @@ class _MainShellState extends State<MainShell> {
 
     final initialUri = await _appLinks.getInitialAppLink();
     if (initialUri != null) {
-      _processLink(initialUri);
+      if (mounted) _processLink(initialUri);
     }
 
     _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-      if (!mounted) return;
-      _processLink(uri);
+      if (mounted) _processLink(uri);
     });
   }
 
   void _processLink(Uri uri) {
-    if (uri.fragment.startsWith('setup=')) {
-      final encodedData = uri.fragment.substring(6);
+    String fragment = uri.fragment;
+    // Handle both /#setup= and #setup=
+    if (fragment.startsWith('/')) {
+        fragment = fragment.substring(1);
+    }
+
+    if (fragment.startsWith('setup=')) {
+      final encodedData = fragment.substring(6);
       try {
         final decodedJson = utf8.decode(base64.decode(encodedData));
         final config = json.decode(decodedJson) as Map<String, dynamic>;
+        
+        final username = config['username'];
+        final repo = config['repo'];
+        final pat = config['pat'];
 
-        if (config['username'] != null && config['repo'] != null && config['pat'] != null) {
+        if (username != null && repo != null && pat != null) {
           final githubService = context.read<GithubService>();
-          githubService.saveConfig(config['username'], config['repo'], config['pat']);
+          githubService.saveConfig(username, repo, pat);
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم استلام الإعدادات بنجاح!'), backgroundColor: Colors.green),
+            const SnackBar(
+                content: Text('تم استلام إعدادات المزامنة بنجاح!'),
+                backgroundColor: Colors.green),
           );
+        } else {
+            throw Exception('Incomplete config data');
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل معالجة الرابط: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('فشل معالجة رابط الإعداد: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
