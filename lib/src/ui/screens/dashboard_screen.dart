@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/notifiers/dashboard_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/sale_list_item.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,9 +18,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (mounted) {
-        final notifier = Provider.of<DashboardNotifier>(context, listen: false);
-        notifier.syncFromNetwork();
+      if(mounted) {
+        Provider.of<DashboardNotifier>(context, listen: false).syncFromNetwork();
       }
     });
   }
@@ -27,19 +27,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<DashboardNotifier>();
-    final settings = context.watch<SettingsNotifier>();
-
-    // Calculate totals based on currency
-    double totalSales = 0;
-    double totalProfit = 0;
-    final isIqd = settings.activeCurrency == 'IQD';
-
-    for (var sale in notifier.filteredSales) {
-      final sellPrice = isIqd ? sale.sellPriceIqd : sale.sellPriceUsd;
-      final costPrice = isIqd ? sale.costPriceIqd : sale.costPriceUsd;
-      totalSales += sellPrice * sale.quantitySold;
-      totalProfit += (sellPrice - costPrice) * sale.quantitySold;
-    }
 
     return Scaffold(
       body: RefreshIndicator(
@@ -63,21 +50,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 16),
             if (notifier.isLoading && notifier.filteredSales.isEmpty)
-              const Center(child: CircularProgressIndicator())
+              const Center(child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
+              ))
             else if (notifier.error != null)
-              Center(child: Text(notifier.error!))
-            else
-              _buildStats(totalSales, totalProfit, settings.activeCurrency),
-
-            // TODO: Add Bestsellers and Sales Log widgets here
+              Center(child: Text('حدث خطأ: ${notifier.error}'))
+            else ...[
+                _buildStats(notifier),
+                const SizedBox(height: 24),
+                _buildBestsellers(notifier),
+                const SizedBox(height: 24),
+                _buildSalesLog(notifier),
+              ]
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStats(double totalSales, double totalProfit, String currency) {
-    final symbol = currency == 'IQD' ? 'د.ع' : '\$';
+  Widget _buildStats(DashboardNotifier notifier) {
+    final settings = context.watch<SettingsNotifier>();
+    final isIqd = settings.activeCurrency == 'IQD';
+    final currencySymbol = isIqd ? 'د.ع' : '\$';
+
+    double totalSales = 0;
+    double totalProfit = 0;
+
+    for (var sale in notifier.filteredSales) {
+      final sellPrice = isIqd ? sale.sellPriceIqd : sale.sellPriceUsd;
+      final costPrice = isIqd ? sale.costPriceIqd : sale.costPriceUsd;
+      totalSales += sellPrice * sale.quantitySold;
+      totalProfit += (sellPrice - costPrice) * sale.quantitySold;
+    }
+
     return Column(
       children: [
         Card(
@@ -85,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             leading: const Icon(Icons.point_of_sale),
             title: const Text('إجمالي المبيعات'),
             trailing: Text(
-              '${totalSales.toStringAsFixed(2)} $symbol',
+              '${totalSales.toStringAsFixed(2)} $currencySymbol',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
@@ -95,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             leading: Icon(Icons.trending_up, color: Colors.green[700]),
             title: const Text('إجمالي الأرباح'),
             trailing: Text(
-              '${totalProfit.toStringAsFixed(2)} $symbol',
+              '${totalProfit.toStringAsFixed(2)} $currencySymbol',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -104,6 +110,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildBestsellers(DashboardNotifier notifier) {
+    final bestsellers = notifier.bestsellers;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('أفضل المنتجات مبيعًا', style: Theme.of(context).textTheme.titleLarge),
+            const Divider(),
+            if (bestsellers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+                child: Text('لا توجد مبيعات في هذه الفترة.'),
+              )
+            else
+              ...bestsellers.map((item) => ListTile(
+                title: Text(item.name),
+                trailing: Chip(label: Text('بيع ${item.count}')),
+              ))
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSalesLog(DashboardNotifier notifier) {
+    final sales = notifier.filteredSales;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('سجل المبيعات', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        if (sales.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('لا توجد مبيعات في هذه الفترة.'),
+            ),
+          )
+        else
+          ...sales.map((sale) => SaleListItem(sale: sale)),
       ],
     );
   }

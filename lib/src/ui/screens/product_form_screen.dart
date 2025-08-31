@@ -1,7 +1,7 @@
 // FILE: lib/src/ui/screens/product_form_screen.dart
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package.flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -46,38 +46,40 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _costUsdFocus = FocusNode();
   final _sellIqdFocus = FocusNode();
   final _sellUsdFocus = FocusNode();
-  
+
   File? _imageFile;
   Set<String> _selectedCategories = {};
   String? _selectedSupplierId;
 
   @override
-  void initState() {
-    super.initState();
-    final p = widget.product;
-    _nameController = TextEditingController(text: p?.name ?? '');
-    _skuController = TextEditingController(text: p?.sku ?? 'KEY-${DateTime.now().millisecondsSinceEpoch}');
-    _quantityController = TextEditingController(text: p?.quantity.toString() ?? '0');
-    _alertLevelController = TextEditingController(text: p?.alertLevel.toString() ?? '2');
-    _costPriceIqdController = TextEditingController(text: p?.costPriceIqd.toString() ?? '0.0');
-    _sellPriceIqdController = TextEditingController(text: p?.sellPriceIqd.toString() ?? '0.0');
-    _costPriceUsdController = TextEditingController(text: p?.costPriceUsd.toString() ?? '0.0');
-    _sellPriceUsdController = TextEditingController(text: p?.sellPriceUsd.toString() ?? '0.0');
-    _oemPartNumberController = TextEditingController(text: p?.oemPartNumber ?? '');
-    _compatiblePartNumberController = TextEditingController(text: p?.compatiblePartNumber ?? '');
-    _notesController = TextEditingController(text: p?.notes ?? '');
-    _selectedCategories = p?.categories.toSet() ?? {};
-    _selectedSupplierId = p?.supplierId;
+    void initState() {
+      super.initState();
+      final p = widget.product;
+      _nameController = TextEditingController(text: p?.name ?? '');
+      _skuController = TextEditingController(text: p?.sku ?? 'KEY-${DateTime.now().millisecondsSinceEpoch}');
+      _quantityController = TextEditingController(text: p?.quantity.toString() ?? '0');
+      _alertLevelController = TextEditingController(text: p?.alertLevel.toString() ?? '2');
+      _costPriceIqdController = TextEditingController(text: p?.costPriceIqd.toString() ?? '0.0');
+      _sellPriceIqdController = TextEditingController(text: p?.sellPriceIqd.toString() ?? '0.0');
+      _costPriceUsdController = TextEditingController(text: p?.costPriceUsd.toString() ?? '0.0');
+      _sellPriceUsdController = TextEditingController(text: p?.sellPriceUsd.toString() ?? '0.0');
+      _oemPartNumberController = TextEditingController(text: p?.oemPartNumber ?? '');
+      _compatiblePartNumberController = TextEditingController(text: p?.compatiblePartNumber ?? '');
+      _notesController = TextEditingController(text: p?.notes ?? '');
+      _selectedCategories = p?.categories.toSet() ?? {};
+      _selectedSupplierId = p?.supplierId;
 
-    // Add listeners for currency conversion
-    _costPriceIqdController.addListener(_convertCostIqdToUsd);
-    _costPriceUsdController.addListener(_convertCostUsdToIqd);
-    _sellPriceIqdController.addListener(_convertSellIqdToUsd);
-    _sellPriceUsdController.addListener(_convertSellUsdToIqd);
+      _costPriceIqdController.addListener(_convertCostIqdToUsd);
+      _costPriceUsdController.addListener(_convertCostUsdToIqd);
+      _sellPriceIqdController.addListener(_convertSellIqdToUsd);
+      _sellPriceUsdController.addListener(_convertSellUsdToIqd);
 
-    // Fetch suppliers for the dropdown
-    Future.microtask(() => context.read<SupplierNotifier>().loadSuppliersFromDb());
-  }
+      Future.microtask(() {
+        if (mounted) {
+          context.read<SupplierNotifier>().loadSuppliersFromDb();
+        }
+      });
+    }
 
   void _convertCostIqdToUsd() {
     if (_costIqdFocus.hasFocus) {
@@ -98,7 +100,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
-    void _convertSellIqdToUsd() {
+  void _convertSellIqdToUsd() {
     if (_sellIqdFocus.hasFocus) {
       final exchangeRate = context.read<SettingsNotifier>().exchangeRate;
       if (exchangeRate == 0) return;
@@ -139,12 +141,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    if (!mounted) return;
     final picker = ImagePicker();
     final theme = Theme.of(context);
-    
+
     final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
     if (pickedFile == null) return;
-    
+
     if (!mounted) return;
 
     final croppedFile = await ImageCropper().cropImage(
@@ -170,14 +173,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _imageFile = File(croppedFile.path);
     });
   }
-  
+
   Future<void> _submitForm() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    
+
     setState(() => _isSaving = true);
 
+    // It's good practice to check `mounted` before starting the async work too.
+    if (!mounted) {
+      setState(() => _isSaving = false);
+      return;
+    }
+
     final notifier = context.read<InventoryNotifier>();
-    
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    // Create the productData object before the try-catch block
     final productData = Product(
       id: widget.product?.id ?? 'item_${DateTime.now().millisecondsSinceEpoch}',
       name: _nameController.text.trim(),
@@ -202,20 +214,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       } else {
         await notifier.addProduct(productData, _imageFile);
       }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم الحفظ بنجاح!'), backgroundColor: Colors.green),
-        );
-        Navigator.of(context).pop();
-      }
 
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
-        );
+      // ADD THIS CHECK: If the widget was removed from the tree while saving, do nothing.
+      if (!mounted) return;
+
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('تم الحفظ بنجاح!'), backgroundColor: Colors.green),
+      );
+      if (navigator.canPop()) {
+        navigator.pop();
       }
+    } catch (e) {
+      // ADD THIS CHECK HERE TOO: For safety in the catch block.
+      if (!mounted) return;
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -250,7 +265,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             _buildSectionTitle('صورة المنتج'),
             _buildImagePicker(),
             const SizedBox(height: 24),
-            
+
             _buildSectionTitle('المعلومات الأساسية'),
             TextFormField(
               controller: _nameController,
@@ -263,20 +278,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               decoration: const InputDecoration(labelText: 'SKU (رقم المنتج)'),
               validator: (value) => value!.isEmpty ? 'هذا الحقل مطلوب' : null,
             ),
-             const SizedBox(height: 16),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _oemPartNumberController,
               decoration: const InputDecoration(labelText: 'رقم القطعة الأصلي (OEM)'),
             ),
-             const SizedBox(height: 16),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _compatiblePartNumberController,
               decoration: const InputDecoration(labelText: 'أرقام القطع المتوافقة (بينها ,)'),
             ),
             const SizedBox(height: 24),
-            
+
             _buildSectionTitle('الفئات'),
-             CategoryInput(
+            CategoryInput(
               initialCategories: _selectedCategories,
               onChanged: (newCategories) {
                 _selectedCategories = newCategories;
@@ -285,7 +300,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 24),
 
             _buildSectionTitle('المخزون والمورّد'),
-             Row(
+            Row(
               children: [
                 Expanded(
                   child: TextFormField(
@@ -307,14 +322,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 16),
             Consumer<SupplierNotifier>(
               builder: (context, notifier, child) {
-                // Ensure the selected ID is valid
                 final validSupplierIds = notifier.suppliers.map((s) => s.id).toSet();
                 if (_selectedSupplierId != null && !validSupplierIds.contains(_selectedSupplierId)) {
                   _selectedSupplierId = null;
                 }
-                
+
                 return DropdownButtonFormField<String>(
-                  value: _selectedSupplierId,
+                  initialValue: _selectedSupplierId,
                   decoration: const InputDecoration(labelText: 'المورّد (اختياري)'),
                   items: [
                     const DropdownMenuItem<String>(
@@ -339,7 +353,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 24),
 
             _buildSectionTitle('التسعير'),
-             Row(
+            Row(
               children: [
                 Expanded(
                   child: TextFormField(
@@ -350,7 +364,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                 Expanded(
+                Expanded(
                   child: TextFormField(
                     controller: _costPriceUsdController,
                     focusNode: _costUsdFocus,
@@ -419,14 +433,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               child: _imageFile != null
                   ? Image.file(_imageFile!, fit: BoxFit.cover)
                   : (widget.product?.imagePath != null && widget.product!.imagePath!.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: context.read<GithubService>().getImageUrl(widget.product!.imagePath!),
-                          httpHeaders: context.read<GithubService>().authHeaders,
-                          fit: BoxFit.cover,
-                          placeholder: (c, u) => const Center(child: CircularProgressIndicator()),
-                          errorWidget: (c, u, e) => const Icon(Symbols.broken_image, size: 64),
-                        )
-                      : const Center(child: Icon(Symbols.key, size: 64))),
+                  ? CachedNetworkImage(
+                imageUrl: context.read<GithubService>().getImageUrl(widget.product!.imagePath!),
+                httpHeaders: context.read<GithubService>().authHeaders,
+                fit: BoxFit.cover,
+                placeholder: (c, u) => const Center(child: CircularProgressIndicator()),
+                errorWidget: (c, u, e) => const Icon(Symbols.broken_image, size: 64),
+              )
+                  : const Center(child: Icon(Symbols.key, size: 64))),
             ),
           ),
           const SizedBox(height: 16),

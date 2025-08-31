@@ -19,29 +19,40 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
+        // Independent Services and Notifiers
         Provider(create: (context) => ConfigService()),
         ChangeNotifierProvider(
             create: (context) =>
                 GithubService(context.read<ConfigService>())),
         ChangeNotifierProvider(
           create: (context) =>
-              InventoryNotifier(context.read<GithubService>()),
+              DashboardNotifier(context.read<GithubService>()),
         ),
         ChangeNotifierProvider(
           create: (context) =>
-              DashboardNotifier(context.read<GithubService>()),
+              SettingsNotifier(context.read<ConfigService>()),
         ),
         ChangeNotifierProvider(
           create: (context) =>
               ActivityLogNotifier(context.read<GithubService>()),
         ),
-        ChangeNotifierProvider(
-          create: (context) =>
-              SupplierNotifier(context.read<GithubService>()),
+
+        // Dependent Notifiers using ProxyProvider
+        ChangeNotifierProxyProvider<ActivityLogNotifier, InventoryNotifier>(
+          create: (context) => InventoryNotifier(
+            context.read<GithubService>(),
+            null,
+          ),
+          update: (context, activityLogNotifier, inventoryNotifier) =>
+          inventoryNotifier!..setActivityLogNotifier(activityLogNotifier),
         ),
-        ChangeNotifierProvider(
-          create: (context) =>
-              SettingsNotifier(context.read<ConfigService>()),
+        ChangeNotifierProxyProvider<InventoryNotifier, SupplierNotifier>(
+          create: (context) => SupplierNotifier(
+            context.read<GithubService>(),
+            null,
+          ),
+          update: (context, inventoryNotifier, supplierNotifier) =>
+          supplierNotifier!..setInventoryNotifier(inventoryNotifier),
         ),
       ],
       child: const MKeyApp(),
@@ -91,7 +102,7 @@ class MKeyApp extends StatelessWidget {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [
-            Locale('ar'), // Arabic
+            Locale('ar'),
           ],
           locale: const Locale('ar'),
 

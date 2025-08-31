@@ -1,8 +1,15 @@
 // FILE: lib/src/ui/screens/settings_screen.dart
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
+import 'package:rhineix_mkey_app/src/models/github_file_model.dart';
+import 'package:rhineix_mkey_app/src/notifiers/activity_log_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/dashboard_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
+import 'package:rhineix_mkey_app/src/services/backup_service.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -87,6 +94,7 @@ class _GeneralSettingsTabState extends State<_GeneralSettingsTab> {
       activeCurrency: settings.activeCurrency,
       exchangeRate: double.tryParse(_exchangeRateController.text) ?? 1460.0,
     );
+    // This is a synchronous operation after other synchronous operations, context should be fine.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('تم حفظ الإعدادات العامة'), backgroundColor: Colors.green),
     );
@@ -96,7 +104,6 @@ class _GeneralSettingsTabState extends State<_GeneralSettingsTab> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsNotifier>();
 
-    // Map enum to double for the slider
     final fontWeightMap = {
       AppFontWeight.light: 0.0,
       AppFontWeight.normal: 1.0,
@@ -186,19 +193,23 @@ class _SyncSettingsTabState extends State<_SyncSettingsTab> {
   }
 
   Future<void> _saveSettings() async {
-    if (_formKey.currentState!.validate()) {
-      final githubService = context.read<GithubService>();
-      await githubService.saveConfig(
-        _usernameController.text.trim(),
-        _repoController.text.trim(),
-        _tokenController.text.trim(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حفظ إعدادات المزامنة'), backgroundColor: Colors.green),
-        );
-      }
+    if (!_formKey.currentState!.validate()) {
+      return;
     }
+    // context.read is fine before await.
+    final githubService = context.read<GithubService>();
+
+    await githubService.saveConfig(
+      _usernameController.text.trim(),
+      _repoController.text.trim(),
+      _tokenController.text.trim(),
+    );
+
+    if (!mounted) return; // Check State's mounted property
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم حفظ إعدادات المزامنة'), backgroundColor: Colors.green),
+    );
   }
 
   @override
@@ -238,6 +249,168 @@ class _SyncSettingsTabState extends State<_SyncSettingsTab> {
 }
 
 class _DataManagementTab extends StatelessWidget {
+
+  void _handleArchive(BuildContext context) async {
+    final dashboardNotifier = context.read<DashboardNotifier>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد الأرشفة'),
+        content: const Text('سيتم أرشفة جميع المبيعات الأقدم من 3 أشهر. لا يمكن التراجع عن هذا الإجراء.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('أرشفة')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      final count = await dashboardNotifier.archiveOldSales();
+      if (!context.mounted) return;
+      if (count > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم أرشفة $count سجل بنجاح'), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا توجد مبيعات قديمة للأرشفة')),
+        );
+      }
+    } catch(e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشلت الأرشفة: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _handleImageCleanup(BuildContext context) async {
+    final inventoryNotifier = context.read<InventoryNotifier>();
+
+    final List<GithubFile> unusedImages = await inventoryNotifier.findUnusedImages();
+
+    if (!context.mounted) return;
+
+    if (unusedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد صور غير مستخدمة ليتم حذفها.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد الحذف'),
+        content: Text('تم العثور على ${unusedImages.length} صورة غير مستخدمة. هل تريد حذفها نهائياً؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text('نعم، حذف ${unusedImages.length} صورة')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      final deletedCount = await inventoryNotifier.deleteUnusedImages(unusedImages);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('اكتمل التنظيف. تم حذف $deletedCount صورة بنجاح.'), backgroundColor: Colors.green),
+      );
+    } catch(e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشل حذف الصور: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _handleBackup(BuildContext context) async {
+    final backupService = BackupService(context.read<GithubService>());
+
+    // Show SnackBar before await - context is valid here.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('جاري تجهيز النسخة الاحتياطية...')),
+    );
+
+    try {
+      await backupService.createAndSaveBackup();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ النسخة الاحتياطية بنجاح.'), backgroundColor: Colors.green),
+      );
+    } catch(e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشل إنشاء النسخة الاحتياطية: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _handleRestore(BuildContext context) async {
+    final backupService = BackupService(context.read<GithubService>());
+    final inventoryNotifier = context.read<InventoryNotifier>();
+    final dashboardNotifier = context.read<DashboardNotifier>();
+    final supplierNotifier = context.read<SupplierNotifier>();
+    final activityLogNotifier = context.read<ActivityLogNotifier>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تأكيد الاستعادة'),
+        content: const Text('سيتم استبدال جميع البيانات الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. هل أنت متأكد؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('استعادة')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+
+    if (!context.mounted) return;
+
+    if (result == null || result.files.single.path == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إلغاء اختيار الملف.')));
+      return;
+    }
+
+    final path = result.files.single.path!;
+
+    try {
+      await backupService.restoreFromBackup(path);
+
+      if (!context.mounted) return;
+
+      inventoryNotifier.syncFromNetwork();
+      dashboardNotifier.syncFromNetwork();
+      supplierNotifier.syncFromNetwork();
+      activityLogNotifier.syncFromNetwork();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم استعادة البيانات ومزامنتها بنجاح'), backgroundColor: Colors.green),
+      );
+    } catch(e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشل استعادة البيانات: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -247,32 +420,24 @@ class _DataManagementTab extends StatelessWidget {
           leading: const Icon(Icons.archive_outlined),
           title: const Text('أرشفة المبيعات القديمة'),
           subtitle: const Text('نقل المبيعات الأقدم من 3 أشهر للأرشيف'),
-          onTap: () {
-            // TODO: Implement archiving
-          },
+          onTap: () => _handleArchive(context),
         ),
         ListTile(
           leading: const Icon(Icons.cleaning_services_outlined),
           title: const Text('تنظيف الصور غير المستخدمة'),
           subtitle: const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
-          onTap: () {
-            // TODO: Implement image cleanup
-          },
+          onTap: () => _handleImageCleanup(context),
         ),
         const Divider(height: 24),
         ListTile(
           leading: const Icon(Icons.download_outlined),
           title: const Text('تنزيل نسخة احتياطية محلية'),
-          onTap: () {
-            // TODO: Implement backup download
-          },
+          onTap: () => _handleBackup(context),
         ),
         ListTile(
           leading: const Icon(Icons.upload_outlined),
           title: const Text('استعادة من نسخة احتياطية'),
-          onTap: () {
-            // TODO: Implement restore from backup
-          },
+          onTap: () => _handleRestore(context),
         ),
       ],
     );

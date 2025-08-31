@@ -63,6 +63,32 @@ class ActivityLogNotifier extends ChangeNotifier {
     }
   }
 
+  Future<void> logAction({
+    required String action,
+    required String targetId,
+    required String targetName,
+    String user = 'المستخدم', // TODO: Get from SettingsNotifier
+    Map<String, dynamic> details = const {},
+  }) async {
+    final newLog = ActivityLog(
+      id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+      timestamp: DateTime.now().toIso8601String(),
+      user: user,
+      action: action,
+      targetId: targetId,
+      targetName: targetName,
+      details: details,
+    );
+
+    _allLogs.insert(0, newLog);
+    await _dbHelper.batchUpdateActivityLogs(_allLogs);
+    await _githubService.saveActivityLogs(_allLogs);
+
+    // Refresh the view
+    _applyFilter();
+    notifyListeners();
+  }
+
   void setFilter(ActivityLogFilter newFilter) {
     if (_filter == newFilter) return;
     _filter = newFilter;

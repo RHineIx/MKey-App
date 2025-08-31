@@ -1,5 +1,5 @@
 // FILE: lib/src/ui/widgets/supplier_dialog.dart
-import 'package.flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
 
 class SupplierDialog extends StatefulWidget {

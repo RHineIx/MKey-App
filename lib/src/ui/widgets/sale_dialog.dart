@@ -19,7 +19,7 @@ class _SaleDialogState extends State<SaleDialog> {
   late final TextEditingController _quantityController;
   late final TextEditingController _priceController;
   late final TextEditingController _notesController;
-  
+
   late DateTime _selectedDate;
   double _totalPrice = 0;
 
@@ -29,7 +29,7 @@ class _SaleDialogState extends State<SaleDialog> {
     _quantityController = TextEditingController(text: '1');
     _notesController = TextEditingController();
     _selectedDate = DateTime.now();
-    
+
     final settings = context.read<SettingsNotifier>();
     final isIqd = settings.activeCurrency == 'IQD';
     final initialPrice = isIqd ? widget.product.sellPriceIqd : widget.product.sellPriceUsd;
@@ -50,7 +50,7 @@ class _SaleDialogState extends State<SaleDialog> {
     _notesController.dispose();
     super.dispose();
   }
-  
+
   void _calculateTotal() {
     final quantity = int.tryParse(_quantityController.text) ?? 0;
     final price = double.tryParse(_priceController.text) ?? 0.0;
@@ -72,7 +72,7 @@ class _SaleDialogState extends State<SaleDialog> {
       });
     }
   }
-  
+
   void _confirmSale() {
     if (_formKey.currentState!.validate()) {
       Navigator.of(context).pop({
@@ -95,80 +95,84 @@ class _SaleDialogState extends State<SaleDialog> {
     return AlertDialog(
       title: const Text('تسجيل عملية بيع'),
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.product.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _quantityController,
-                      decoration: InputDecoration(
-                        labelText: 'الكمية المباعة',
-                        hintText: 'المتوفر: ${widget.product.quantity}',
+      content: SizedBox(
+        // Set a width to make the dialog wider
+        width: MediaQuery.of(context).size.width,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.product.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 24),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _quantityController,
+                        decoration: InputDecoration(
+                          labelText: 'الكمية المباعة',
+                          hintText: 'المتوفر: ${widget.product.quantity}',
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'الرجاء إدخال الكمية';
+                          final qty = int.tryParse(value);
+                          if (qty == null || qty <= 0) return 'كمية غير صالحة';
+                          if (qty > widget.product.quantity) return 'الكمية أكبر من المتوفر';
+                          return null;
+                        },
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'الرجاء إدخال الكمية';
-                        final qty = int.tryParse(value);
-                        if (qty == null || qty <= 0) return 'كمية غير صالحة';
-                        if (qty > widget.product.quantity) return 'الكمية أكبر من المتوفر';
-                        return null;
-                      },
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _priceController,
+                        decoration: InputDecoration(labelText: priceLabel),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'الرجاء إدخال السعر';
+                          final price = double.tryParse(value);
+                          if (price == null || price < 0) return 'سعر غير صالح';
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('الإجمالي'),
+                  trailing: Text(
+                    '${formatter.format(_totalPrice)} $currencySymbol',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceController,
-                      decoration: InputDecoration(labelText: priceLabel),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'الرجاء إدخال السعر';
-                        final price = double.tryParse(value);
-                        if (price == null || price < 0) return 'سعر غير صالح';
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('الإجمالي'),
-                trailing: Text(
-                  '${formatter.format(_totalPrice)} $currencySymbol',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('تاريخ البيع'),
+                  subtitle: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: _pickDate,
                   ),
                 ),
-              ),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('تاريخ البيع'),
-                subtitle: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: _pickDate,
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _notesController,
+                  decoration: const InputDecoration(labelText: 'ملاحظات على البيع (اختياري)'),
+                  maxLines: 2,
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(labelText: 'ملاحظات على البيع (اختياري)'),
-                maxLines: 2,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -19,72 +19,77 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        final notifier = Provider.of<SupplierNotifier>(context, listen: false);
-        notifier.syncFromNetwork();
+        Provider.of<SupplierNotifier>(context, listen: false).syncFromNetwork();
       }
     });
   }
 
   void _showSupplierDialog({Supplier? supplier}) async {
+    final notifier = context.read<SupplierNotifier>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => SupplierDialog(supplier: supplier),
     );
 
-    if (result != null && mounted) {
-      final notifier = context.read<SupplierNotifier>();
-      final name = result['name']!;
-      final phone = result['phone'];
-      final isEditing = supplier != null;
-      
-      try {
-        if (isEditing) {
-          await notifier.updateSupplier(supplier.id, name, phone);
-        } else {
-          await notifier.addSupplier(name, phone);
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
-        );
+    if (result == null || !scaffoldMessenger.mounted) return;
+
+    final name = result['name']!;
+    final phone = result['phone'];
+    final isEditing = supplier != null;
+
+    try {
+      if (isEditing) {
+        await notifier.updateSupplier(supplier.id, name, phone);
+      } else {
+        await notifier.addSupplier(name, phone);
       }
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
   void _deleteSupplier(Supplier supplier) async {
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final notifier = context.read<SupplierNotifier>();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('تأكيد الحذف'),
         content: Text('هل أنت متأكد من حذف المورّد "${supplier.name}"؟ سيتم فك ارتباطه من جميع المنتجات.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('حذف')),
+          TextButton(onPressed: () => navigator.pop(false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => navigator.pop(true), child: const Text('حذف')),
         ],
       ),
     );
 
-    if (confirmed == true && mounted) {
-      final notifier = context.read<SupplierNotifier>();
-      try {
-        await notifier.deleteSupplier(supplier.id);
-         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.green),
-        );
-      } catch (e) {
-         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الحذف: $e'), backgroundColor: Colors.red),
-        );
-      }
+    if (confirmed != true || !scaffoldMessenger.mounted) return;
+
+    try {
+      await notifier.deleteSupplier(supplier.id);
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('فشل الحذف: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<SupplierNotifier>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('إدارة المورّدين'),

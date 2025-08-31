@@ -10,11 +10,11 @@ class SupplierNotifier extends ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   InventoryNotifier? _inventoryNotifier;
 
-  SupplierNotifier(this._githubService) {
+  SupplierNotifier(this._githubService, this._inventoryNotifier) {
     _githubService.addListener(syncFromNetwork);
     loadSuppliersFromDb();
   }
-  
+
   void setInventoryNotifier(InventoryNotifier notifier) {
     _inventoryNotifier = notifier;
   }
@@ -84,7 +84,7 @@ class SupplierNotifier extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   Future<void> updateSupplier(String id, String name, String? phone) async {
     _isLoading = true;
     notifyListeners();
@@ -110,7 +110,7 @@ class SupplierNotifier extends ChangeNotifier {
     notifyListeners();
     try {
       _suppliers.removeWhere((s) => s.id == id);
-      // await _inventoryNotifier?.unlinkSupplier(id); // Unlink from products
+      await _inventoryNotifier?.unlinkSupplier(id);
       await _dbHelper.batchUpdateSuppliers(_suppliers);
       await _githubService.saveSuppliers(_suppliers);
       await loadSuppliersFromDb();
@@ -122,7 +122,7 @@ class SupplierNotifier extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   Supplier? getSupplierById(String id) {
     try {
       return _suppliers.firstWhere((s) => s.id == id);

@@ -20,8 +20,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        final notifier = Provider.of<ActivityLogNotifier>(context, listen: false);
-        notifier.syncFromNetwork();
+        Provider.of<ActivityLogNotifier>(context, listen: false).syncFromNetwork();
       }
     });
   }
@@ -40,7 +39,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<ActivityLogFilter>(
-                      initialValue: notifier.filter, // Corrected: from 'value' to 'initialValue'
+                      initialValue: notifier.filter,
                       decoration: const InputDecoration(
                         labelText: 'فلترة حسب النشاط',
                         border: OutlineInputBorder(),
@@ -94,6 +93,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: notifier.filteredLogs.length,
       itemBuilder: (context, index) {
         final log = notifier.filteredLogs[index];
@@ -107,18 +107,18 @@ class _LogEntryCard extends StatelessWidget {
   final ActivityLog log;
   const _LogEntryCard({required this.log});
 
-  (IconData, Color) _getIconForAction(String action) {
+  (IconData, Color, String) _getVisualsForAction(String action) {
     switch (action) {
       case 'ITEM_CREATED':
-        return (Symbols.add_box, Colors.green);
+        return (Symbols.add_box, Colors.green, 'إنشاء منتج');
       case 'SALE_RECORDED':
-        return (Symbols.shopping_cart, Colors.blue);
+        return (Symbols.shopping_cart, Colors.blue, 'تسجيل بيع');
       case 'QUANTITY_UPDATED':
-        return (Symbols.inventory_2, Colors.orange);
+        return (Symbols.inventory_2, Colors.orange, 'تحديث الكمية');
       case 'ITEM_DELETED':
-        return (Symbols.delete, Colors.red);
+        return (Symbols.delete, Colors.red, 'حذف منتج');
       default:
-        return (Symbols.edit, Colors.purple);
+        return (Symbols.edit, Colors.purple, 'تحديث بيانات');
     }
   }
 
@@ -129,21 +129,83 @@ class _LogEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = _getIconForAction(log.action);
+    final (icon, color, title) = _getVisualsForAction(log.action);
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: color,
           foregroundColor: Colors.white,
           child: Icon(icon, size: 20),
         ),
-        title: Text(
-          '${log.targetName}: ${log.action}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('بواسطة ${log.user} • ${_formatTimestamp(log.timestamp)}'),
-        // TODO: Add an expansion tile to show log.details
+        title: Text(log.targetName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('$title • ${_formatTimestamp(log.timestamp)}'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _LogDetails(details: log.details),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _LogDetails extends StatelessWidget {
+  final Map<String, dynamic> details;
+  const _LogDetails({required this.details});
+
+  @override
+  Widget build(BuildContext context) {
+    if (details.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Theme.of(context).dividerColor, width: 1))
+      ),
+      child: Column(
+        children: details.entries.map((entry) {
+          String keyText;
+          String valueText;
+
+          switch(entry.key) {
+            case 'from':
+              keyText = 'القيمة القديمة';
+              break;
+            case 'to':
+              keyText = 'القيمة الجديدة';
+              break;
+            case 'quantity':
+              keyText = 'الكمية';
+              break;
+            case 'price':
+              keyText = 'السعر';
+              break;
+            case 'currency':
+              keyText = 'العملة';
+              break;
+            case 'reason':
+              keyText = 'السبب';
+              break;
+            default:
+              keyText = entry.key;
+          }
+          valueText = entry.value.toString();
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(keyText, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
+                Text(valueText, style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }
