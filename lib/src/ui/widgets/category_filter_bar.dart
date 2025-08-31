@@ -1,15 +1,41 @@
 // FILE: lib/src/ui/widgets/category_filter_bar.dart
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/category_edit_dialog.dart';
 
-class CategoryFilterBar extends StatelessWidget {
+class CategoryFilterBar extends StatefulWidget {
   final ValueChanged<String?> onCategorySelected;
-
   const CategoryFilterBar({
     super.key,
     required this.onCategorySelected,
   });
+
+  @override
+  State<CategoryFilterBar> createState() => _CategoryFilterBarState();
+}
+
+class _CategoryFilterBarState extends State<CategoryFilterBar> {
+  String? _editingCategory;
+
+  void _handleRename(BuildContext context, String oldName) async {
+    final notifier = context.read<InventoryNotifier>();
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => CategoryEditDialog(oldName: oldName),
+    );
+
+    setState(() {
+      _editingCategory = null; // Exit edit mode regardless of result
+    });
+
+    if (newName != null && newName.isNotEmpty && newName != oldName) {
+      if (context.mounted) {
+        notifier.renameCategory(oldName, newName);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,21 +64,63 @@ class CategoryFilterBar extends StatelessWidget {
           final categoryData = categoriesToShow[index];
           final label = categoryData['label']!;
           final value = categoryData['value'];
-
           final isSelected = selectedCategory == value;
+          final isEditing = _editingCategory == value;
+          // Cannot edit "All" or "Uncategorized"
+          final canEdit = value != null && value != '_uncategorized_';
+
+          Widget chip = ChoiceChip(
+            label: Text(label),
+            selected: isSelected,
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            onSelected: (selected) {
+              if (isEditing) {
+                // If in edit mode, tapping a chip should exit edit mode
+                setState(() {
+                  _editingCategory = null;
+                });
+                return;
+              }
+              if (selected) {
+                widget.onCategorySelected(value);
+              }
+            },
+          );
 
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            child: ChoiceChip(
-              label: Text(label),
-              selected: isSelected,
-              // Added padding to give text more space
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              onSelected: (selected) {
-                if (selected) {
-                  onCategorySelected(value);
-                }
-              },
+            child: GestureDetector(
+              onLongPress: canEdit
+                  ? () {
+                      setState(() {
+                        _editingCategory = value;
+                      });
+                    }
+                  : null,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  chip,
+                  if (isEditing)
+                    Positioned(
+                      top: -8,
+                      right: -8,
+                      child: GestureDetector(
+                        onTap: () => _handleRename(context, value!),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: kElevationToShadow[2],
+                          ),
+                          child: const Icon(Symbols.edit,
+                              size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },

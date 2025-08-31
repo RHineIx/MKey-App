@@ -10,11 +10,11 @@ import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_detail_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/sale_dialog.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
-
   const ProductCard({super.key, required this.product});
 
   void _showSaleDialog(BuildContext context) async {
@@ -26,7 +26,6 @@ class ProductCard extends StatelessWidget {
       context: context,
       builder: (context) => SaleDialog(product: product),
     );
-
     if (result == null || !scaffoldMessenger.mounted) return;
 
     try {
@@ -40,38 +39,35 @@ class ProductCard extends StatelessWidget {
         exchangeRate: settings.exchangeRate,
       );
       scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('تم تسجيل البيع بنجاح'), backgroundColor: Colors.green),
+        const SnackBar(
+            content: Text('تم تسجيل البيع بنجاح'),
+            backgroundColor: Colors.green),
       );
     } catch (e) {
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('فشل تسجيل البيع: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('فشل تسجيل البيع: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
   void _deleteProduct(BuildContext context) async {
-    final navigator = Navigator.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final notifier = context.read<InventoryNotifier>();
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmationDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: Text('هل أنت متأكد من رغبتك في حذف المنتج "${product.name}"؟'),
-        actions: [
-          TextButton(onPressed: () => navigator.pop(false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => navigator.pop(true), child: const Text('حذف')),
-        ],
-      ),
+      title: 'تأكيد الحذف',
+      content: 'هل أنت متأكد من رغبتك في حذف المنتج "${product.name}"؟',
+      confirmText: 'حذف',
     );
 
     if (confirmed != true || !scaffoldMessenger.mounted) return;
-
     try {
       await notifier.deleteProduct(product.id);
       scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('تم حذف المنتج بنجاح'), backgroundColor: Colors.green),
+        const SnackBar(
+            content: Text('تم حذف المنتج بنجاح'), backgroundColor: Colors.green),
       );
     } catch (e) {
       scaffoldMessenger.showSnackBar(
@@ -80,7 +76,6 @@ class ProductCard extends StatelessWidget {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat('#,###', 'ar_IQ');
@@ -88,9 +83,15 @@ class ProductCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final githubService = Provider.of<GithubService>(context, listen: false);
 
+    // NEW: Listen to notifier for selection mode changes
+    final inventoryNotifier = context.watch<InventoryNotifier>();
+    final isSelectionMode = inventoryNotifier.isSelectionModeActive;
+    final isSelected = inventoryNotifier.selectedItemIds.contains(product.id);
+
     final bool isOutOfStock = product.quantity <= 0;
-    final bool isLowStock = !isOutOfStock && product.quantity <= product.alertLevel;
-    
+    final bool isLowStock =
+        !isOutOfStock && product.quantity <= product.alertLevel;
+
     final String badgeText;
     final Color badgeColor;
 
@@ -105,17 +106,30 @@ class ProductCard extends StatelessWidget {
       badgeColor = colorScheme.primary;
     }
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
+    return GestureDetector(
+      onLongPress: () {
+        inventoryNotifier.enterSelectionMode(product.id);
+      },
+      onTap: () {
+        if (isSelectionMode) {
+          inventoryNotifier.toggleSelection(product.id);
+        } else {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ProductDetailScreen(product: product),
             ),
           );
-        },
+        }
+      },
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: isSelected
+              ? BorderSide(color: colorScheme.primary, width: 2)
+              : BorderSide.none,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -125,18 +139,23 @@ class ProductCard extends StatelessWidget {
                 children: [
                   Container(
                     color: colorScheme.surfaceContainerHighest,
-                    child: (product.imagePath != null && product.imagePath!.isNotEmpty)
+                    child: (product.imagePath != null &&
+                            product.imagePath!.isNotEmpty)
                         ? CachedNetworkImage(
-                            imageUrl: githubService.getImageUrl(product.imagePath!),
+                            imageUrl:
+                                githubService.getImageUrl(product.imagePath!),
                             httpHeaders: githubService.authHeaders,
                             fit: BoxFit.contain,
-                            placeholder: (context, url) =>
-                                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            placeholder: (context, url) => const Center(
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
                             errorWidget: (context, url, error) => const Center(
-                                child: Icon(Symbols.broken_image, size: 48, color: Colors.grey)),
+                                child: Icon(Symbols.broken_image,
+                                    size: 48, color: Colors.grey)),
                           )
                         : const Center(
-                            child: Icon(Symbols.key, size: 48, color: Colors.grey)),
+                            child:
+                                Icon(Symbols.key, size: 48, color: Colors.grey)),
                   ),
                   Positioned(
                     top: 8,
@@ -145,15 +164,36 @@ class ProductCard extends StatelessWidget {
                       label: Text(badgeText),
                       backgroundColor: badgeColor,
                       labelStyle: textTheme.labelMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.1,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.1,
                       ),
                       side: BorderSide.none,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 0),
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
+                  if (isSelectionMode)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : Colors.black.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check,
+                                color: Colors.white, size: 16)
+                            : null,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -164,14 +204,16 @@ class ProductCard extends StatelessWidget {
                 children: [
                   Text(
                     product.name,
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, height: 1.3),
+                    style: textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold, height: 1.3),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'SKU: ${product.sku}',
-                    style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -193,8 +235,11 @@ class ProductCard extends StatelessWidget {
                               width: 36,
                               height: 36,
                               child: IconButton(
-                                icon: const Icon(Symbols.shopping_cart, size: 20),
-                                onPressed: isOutOfStock ? null : () => _showSaleDialog(context),
+                                icon: const Icon(Symbols.shopping_cart,
+                                    size: 20),
+                                onPressed: isOutOfStock
+                                    ? null
+                                    : () => _showSaleDialog(context),
                                 tooltip: 'بيع',
                                 style: IconButton.styleFrom(
                                   backgroundColor: colorScheme.primary,
@@ -211,20 +256,26 @@ class ProductCard extends StatelessWidget {
                               onSelected: (value) {
                                 if (value == 'edit') {
                                   Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (context) => ProductFormScreen(product: product),
+                                    builder: (context) =>
+                                        ProductFormScreen(product: product),
                                   ));
                                 } else if (value == 'delete') {
                                   _deleteProduct(context);
                                 }
                               },
-                              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                              itemBuilder: (BuildContext context) =>
+                                  <PopupMenuEntry<String>>[
                                 const PopupMenuItem<String>(
                                   value: 'edit',
-                                  child: ListTile(leading: Icon(Symbols.edit), title: Text('تعديل')),
+                                  child: ListTile(
+                                      leading: Icon(Symbols.edit),
+                                      title: Text('تعديل')),
                                 ),
                                 const PopupMenuItem<String>(
                                   value: 'delete',
-                                  child: ListTile(leading: Icon(Symbols.delete), title: Text('حذف')),
+                                  child: ListTile(
+                                      leading: Icon(Symbols.delete),
+                                      title: Text('حذف')),
                                 ),
                               ],
                               icon: const Icon(Symbols.more_vert),

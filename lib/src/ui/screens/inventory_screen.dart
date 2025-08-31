@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/bulk_actions_bar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/category_filter_bar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/inventory_header.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/product_card.dart';
@@ -44,7 +45,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSync(InventoryNotifier notifier, {bool isInitial = false}) async {
+  Future<void> _handleSync(InventoryNotifier notifier,
+      {bool isInitial = false}) async {
     _onFilterChanged();
     final String? errorMessage = await notifier.syncFromNetwork();
     if (mounted && errorMessage != null && !isInitial) {
@@ -69,31 +71,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<InventoryNotifier>();
-
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async => _handleSync(notifier),
-        child: Column(
-          children: [
-            InventoryHeader(onFilterChanged: _onFilterChanged),
-            CategoryFilterBar(
-              onCategorySelected: (category) {
-                notifier.selectCategory(category);
-                _onFilterChanged();
-              },
-            ),
-            Expanded(
+      body: Column(
+        children: [
+          InventoryHeader(onFilterChanged: _onFilterChanged),
+          CategoryFilterBar(
+            onCategorySelected: (category) {
+              notifier.selectCategory(category);
+              _onFilterChanged();
+            },
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => _handleSync(notifier),
               child: _buildBody(notifier),
             ),
-          ],
-        ),
+          ),
+          BulkActionsBar(), // NEW: Added the bulk actions bar
+        ],
       ),
-      // Changed to startFloat to enforce left alignment in RTL
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_showScrollTopButton)
+          if (_showScrollTopButton && !notifier.isSelectionModeActive)
             FloatingActionButton.small(
               heroTag: 'inventory_scroll_top_fab',
               onPressed: _scrollToTop,
@@ -101,16 +103,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
               child: const Icon(Symbols.arrow_upward),
             ),
           const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'inventory_add_fab',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => const ProductFormScreen(),
-              ));
-            },
-            tooltip: 'إضافة منتج جديد',
-            child: const Icon(Symbols.add),
-          ),
+          if (!notifier.isSelectionModeActive)
+            FloatingActionButton(
+              heroTag: 'inventory_add_fab',
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const ProductFormScreen(),
+                ));
+              },
+              tooltip: 'إضافة منتج جديد',
+              child: const Icon(Symbols.add),
+            ),
         ],
       ),
     );
@@ -126,7 +129,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child:
-          Text('حدث خطأ:\n${notifier.error}', textAlign: TextAlign.center),
+              Text('حدث خطأ:\n${notifier.error}', textAlign: TextAlign.center),
         ),
       );
     }
@@ -138,7 +141,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return AnimationLimiter(
       child: GridView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 90), // Added bottom padding for FAB
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 12.0,

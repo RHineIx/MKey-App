@@ -34,13 +34,150 @@ class InventoryNotifier extends ChangeNotifier {
   SortOption _currentSortOption = SortOption.defaults;
   List<String> _allCategories = [];
 
+  bool _isSelectionModeActive = false;
+  final Set<String> _selectedItemIds = {};
+
   bool get isLoading => _isLoading;
   List<Product> get products => _allProducts;
   List<Product> get filteredProducts => _filteredProducts;
   List<String> get categories => _allCategories;
   String? get selectedCategory => _selectedCategory;
   String? get error => _error;
-  bool get hasUncategorizedItems => _allProducts.any((p) => p.categories.isEmpty);
+  bool get hasUncategorizedItems =>
+      _allProducts.any((p) => p.categories.isEmpty);
+
+  bool get isSelectionModeActive => _isSelectionModeActive;
+  Set<String> get selectedItemIds => _selectedItemIds;
+
+  void enterSelectionMode(String initialProductId) {
+    if (_isSelectionModeActive) return;
+    _isSelectionModeActive = true;
+    _selectedItemIds.clear();
+    _selectedItemIds.add(initialProductId);
+    notifyListeners();
+  }
+
+  void exitSelectionMode() {
+    if (!_isSelectionModeActive) return;
+    _isSelectionModeActive = false;
+    _selectedItemIds.clear();
+    notifyListeners();
+  }
+
+  void toggleSelection(String productId) {
+    if (!_isSelectionModeActive) return;
+
+    if (_selectedItemIds.contains(productId)) {
+      _selectedItemIds.remove(productId);
+    } else {
+      _selectedItemIds.add(productId);
+    }
+
+    if (_selectedItemIds.isEmpty) {
+      exitSelectionMode();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void clearSelection() {
+    _selectedItemIds.clear();
+    exitSelectionMode();
+  }
+
+  Future<void> handleBulkCategoryChange(List<String> newCategories) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _allProducts.where((p) => _selectedItemIds.contains(p.id)).forEach((product) {
+        final index = _allProducts.indexWhere((p) => p.id == product.id);
+        if (index != -1) {
+          _allProducts[index] = Product(
+              id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
+              alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
+              costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, imagePath: product.imagePath,
+              oemPartNumber: product.oemPartNumber, compatiblePartNumber: product.compatiblePartNumber,
+              notes: product.notes, supplierId: product.supplierId, categories: newCategories);
+        }
+      });
+      await _dbHelper.batchUpdateProducts(_allProducts);
+      await _githubService.saveInventory(_allProducts);
+      await loadProductsFromDb();
+    } finally {
+      exitSelectionMode(); 
+      _isLoading = false;
+    }
+  }
+  
+  Future<void> handleBulkSupplierChange(String? newSupplierId) async {
+      _isLoading = true;
+      notifyListeners();
+      try {
+          _allProducts.where((p) => _selectedItemIds.contains(p.id)).forEach((product) {
+              final index = _allProducts.indexWhere((p) => p.id == product.id);
+              if (index != -1) {
+                  _allProducts[index] = Product(
+                      id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
+                      alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
+                      costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, imagePath: product.imagePath,
+                      oemPartNumber: product.oemPartNumber, compatiblePartNumber: product.compatiblePartNumber,
+                      notes: product.notes, supplierId: newSupplierId, categories: product.categories);
+              }
+          });
+          await _dbHelper.batchUpdateProducts(_allProducts);
+          await _githubService.saveInventory(_allProducts);
+          await loadProductsFromDb();
+      } finally {
+          exitSelectionMode();
+          _isLoading = false;
+      }
+  }
+
+  // NEW: Method to handle category renaming
+  Future<void> renameCategory(String oldName, String newName) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Update in-memory list
+      for (int i = 0; i < _allProducts.length; i++) {
+        final product = _allProducts[i];
+        if (product.categories.contains(oldName)) {
+          final newCategories = product.categories.map((c) => c == oldName ? newName : c).toList();
+          _allProducts[i] = Product(
+            id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
+            alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
+            costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, imagePath: product.imagePath,
+            oemPartNumber: product.oemPartNumber, compatiblePartNumber: product.compatiblePartNumber,
+            notes: product.notes, supplierId: product.supplierId, categories: newCategories
+          );
+        }
+      }
+
+      // Update database and remote
+      await _dbHelper.batchUpdateProducts(_allProducts);
+      await _githubService.saveInventory(_allProducts);
+
+      // Log the action (optional but good practice)
+      await _activityLogNotifier?.logAction(
+        action: 'CATEGORY_RENAMED',
+        targetId: 'categories',
+        targetName: 'All Categories',
+        details: {'from': oldName, 'to': newName},
+      );
+
+      // If the currently selected category was the one renamed, update it
+      if (_selectedCategory == oldName) {
+        _selectedCategory = newName;
+      }
+
+      // Refresh data and UI
+      await loadProductsFromDb();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   void _configChanged() {
     syncFromNetwork();
@@ -98,11 +235,21 @@ class InventoryNotifier extends ChangeNotifier {
       }
 
       final newProduct = Product(
-        id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
-        alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
-        costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, notes: product.notes,
-        imagePath: imagePath, categories: product.categories, oemPartNumber: product.oemPartNumber,
-        compatiblePartNumber: product.compatiblePartNumber, supplierId: product.supplierId,
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.quantity,
+        alertLevel: product.alertLevel,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceIqd: product.sellPriceIqd,
+        costPriceUsd: product.costPriceUsd,
+        sellPriceUsd: product.sellPriceUsd,
+        notes: product.notes,
+        imagePath: imagePath,
+        categories: product.categories,
+        oemPartNumber: product.oemPartNumber,
+        compatiblePartNumber: product.compatiblePartNumber,
+        supplierId: product.supplierId,
       );
 
       _allProducts.add(newProduct);
@@ -114,10 +261,8 @@ class InventoryNotifier extends ChangeNotifier {
         targetId: newProduct.id,
         targetName: newProduct.name,
       );
-
       await loadProductsFromDb();
-
-    } catch(e) {
+    } catch (e) {
       await loadProductsFromDb();
       rethrow;
     } finally {
@@ -130,20 +275,33 @@ class InventoryNotifier extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final originalProduct = _allProducts.firstWhere((p) => p.id == updatedProduct.id, orElse: () => updatedProduct);
+    final originalProduct = _allProducts.firstWhere(
+        (p) => p.id == updatedProduct.id,
+        orElse: () => updatedProduct);
 
     try {
       String? imagePath = updatedProduct.imagePath;
       if (imageFile != null) {
-        imagePath = await _githubService.uploadImage(imageFile, updatedProduct.sku);
+        imagePath =
+            await _githubService.uploadImage(imageFile, updatedProduct.sku);
       }
 
       final finalProduct = Product(
-        id: updatedProduct.id, name: updatedProduct.name, sku: updatedProduct.sku, quantity: updatedProduct.quantity,
-        alertLevel: updatedProduct.alertLevel, costPriceIqd: updatedProduct.costPriceIqd, sellPriceIqd: updatedProduct.sellPriceIqd,
-        costPriceUsd: updatedProduct.costPriceUsd, sellPriceUsd: updatedProduct.sellPriceUsd, notes: updatedProduct.notes,
-        imagePath: imagePath, categories: updatedProduct.categories, oemPartNumber: updatedProduct.oemPartNumber,
-        compatiblePartNumber: updatedProduct.compatiblePartNumber, supplierId: updatedProduct.supplierId,
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        sku: updatedProduct.sku,
+        quantity: updatedProduct.quantity,
+        alertLevel: updatedProduct.alertLevel,
+        costPriceIqd: updatedProduct.costPriceIqd,
+        sellPriceIqd: updatedProduct.sellPriceIqd,
+        costPriceUsd: updatedProduct.costPriceUsd,
+        sellPriceUsd: updatedProduct.sellPriceUsd,
+        notes: updatedProduct.notes,
+        imagePath: imagePath,
+        categories: updatedProduct.categories,
+        oemPartNumber: updatedProduct.oemPartNumber,
+        compatiblePartNumber: updatedProduct.compatiblePartNumber,
+        supplierId: updatedProduct.supplierId,
       );
 
       final index = _allProducts.indexWhere((p) => p.id == finalProduct.id);
@@ -156,7 +314,7 @@ class InventoryNotifier extends ChangeNotifier {
 
         await loadProductsFromDb();
       }
-    } catch(e) {
+    } catch (e) {
       await loadProductsFromDb();
       rethrow;
     } finally {
@@ -166,8 +324,12 @@ class InventoryNotifier extends ChangeNotifier {
   }
 
   Future<void> recordSale({
-    required Product product, required int quantity, required double price,
-    required String currency, required DateTime saleDate, required String notes,
+    required Product product,
+    required int quantity,
+    required double price,
+    required String currency,
+    required DateTime saleDate,
+    required String notes,
     required double exchangeRate,
   }) async {
     _isLoading = true;
@@ -176,22 +338,40 @@ class InventoryNotifier extends ChangeNotifier {
     try {
       final originalQuantity = product.quantity;
       final updatedProduct = Product(
-          id: product.id, name: product.name, sku: product.sku,
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
           quantity: product.quantity - quantity,
-          alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
-          costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, notes: product.notes,
-          imagePath: product.imagePath, categories: product.categories, oemPartNumber: product.oemPartNumber,
-          compatiblePartNumber: product.compatiblePartNumber, supplierId: product.supplierId);
+          alertLevel: product.alertLevel,
+          costPriceIqd: product.costPriceIqd,
+          sellPriceIqd: product.sellPriceIqd,
+          costPriceUsd: product.costPriceUsd,
+          sellPriceUsd: product.sellPriceUsd,
+          notes: product.notes,
+          imagePath: product.imagePath,
+          categories: product.categories,
+          oemPartNumber: product.oemPartNumber,
+          compatiblePartNumber: product.compatiblePartNumber,
+          supplierId: product.supplierId);
 
       final index = _allProducts.indexWhere((p) => p.id == product.id);
-      if (index != -1) { _allProducts[index] = updatedProduct; }
+      if (index != -1) {
+        _allProducts[index] = updatedProduct;
+      }
 
       final isIqd = currency == 'IQD';
       final sale = Sale(
-        saleId: 'sale_${DateTime.now().millisecondsSinceEpoch}', itemId: product.id, itemName: product.name,
-        quantitySold: quantity, sellPriceIqd: isIqd ? price : (price * exchangeRate), costPriceIqd: product.costPriceIqd,
-        sellPriceUsd: isIqd ? (price / exchangeRate) : price, costPriceUsd: product.costPriceUsd,
-        saleDate: DateFormat('yyyy-MM-dd').format(saleDate), notes: notes, timestamp: DateTime.now().toIso8601String(),
+        saleId: 'sale_${DateTime.now().millisecondsSinceEpoch}',
+        itemId: product.id,
+        itemName: product.name,
+        quantitySold: quantity,
+        sellPriceIqd: isIqd ? price : (price * exchangeRate),
+        costPriceIqd: product.costPriceIqd,
+        sellPriceUsd: isIqd ? (price / exchangeRate) : price,
+        costPriceUsd: product.costPriceUsd,
+        saleDate: DateFormat('yyyy-MM-dd').format(saleDate),
+        notes: notes,
+        timestamp: DateTime.now().toIso8601String(),
       );
 
       final allSales = await _dbHelper.getAllSales();
@@ -212,10 +392,13 @@ class InventoryNotifier extends ChangeNotifier {
           action: 'QUANTITY_UPDATED',
           targetId: product.id,
           targetName: product.name,
-          details: {'from': originalQuantity, 'to': updatedProduct.quantity, 'reason': 'عملية بيع'});
+          details: {
+            'from': originalQuantity,
+            'to': updatedProduct.quantity,
+            'reason': 'عملية بيع'
+          });
 
       await loadProductsFromDb();
-
     } catch (e) {
       await loadProductsFromDb();
       rethrow;
@@ -228,9 +411,12 @@ class InventoryNotifier extends ChangeNotifier {
   Future<void> deleteProduct(String productId) async {
     _isLoading = true;
     notifyListeners();
+
     try {
-      final productToDelete = _allProducts.firstWhere((p) => p.id == productId);
+      final productToDelete =
+          _allProducts.firstWhere((p) => p.id == productId);
       _allProducts.removeWhere((p) => p.id == productId);
+
       await _dbHelper.batchUpdateProducts(_allProducts);
       await _githubService.saveInventory(_allProducts);
 
@@ -238,7 +424,6 @@ class InventoryNotifier extends ChangeNotifier {
           action: 'ITEM_DELETED',
           targetId: productToDelete.id,
           targetName: productToDelete.name);
-
       await loadProductsFromDb();
     } catch (e) {
       await loadProductsFromDb();
@@ -254,13 +439,25 @@ class InventoryNotifier extends ChangeNotifier {
       final index = _allProducts.indexWhere((element) => element.id == p.id);
       if (index != -1) {
         _allProducts[index] = Product(
-          id: p.id, name: p.name, sku: p.sku, quantity: p.quantity, alertLevel: p.alertLevel,
-          costPriceIqd: p.costPriceIqd, sellPriceIqd: p.sellPriceIqd, costPriceUsd: p.costPriceUsd,
-          sellPriceUsd: p.sellPriceUsd, notes: p.notes, imagePath: p.imagePath, categories: p.categories,
-          oemPartNumber: p.oemPartNumber, compatiblePartNumber: p.compatiblePartNumber, supplierId: null,
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          quantity: p.quantity,
+          alertLevel: p.alertLevel,
+          costPriceIqd: p.costPriceIqd,
+          sellPriceIqd: p.sellPriceIqd,
+          costPriceUsd: p.costPriceUsd,
+          sellPriceUsd: p.sellPriceUsd,
+          notes: p.notes,
+          imagePath: p.imagePath,
+          categories: p.categories,
+          oemPartNumber: p.oemPartNumber,
+          compatiblePartNumber: p.compatiblePartNumber,
+          supplierId: null,
         );
       }
     });
+
     await _dbHelper.batchUpdateProducts(_allProducts);
     await _githubService.saveInventory(_allProducts);
     await loadProductsFromDb();
@@ -271,8 +468,10 @@ class InventoryNotifier extends ChangeNotifier {
     notifyListeners();
     try {
       final repoImages = await _githubService.getDirectoryListing('images');
-      final usedImagePaths = _allProducts.map((p) => p.imagePath).where((p) => p != null).toSet();
-      final unused = repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
+      final usedImagePaths =
+          _allProducts.map((p) => p.imagePath).where((p) => p != null).toSet();
+      final unused =
+          repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
       return unused;
     } finally {
       _isLoading = false;
@@ -298,18 +497,35 @@ class InventoryNotifier extends ChangeNotifier {
 
   void _logChanges(Product oldP, Product newP) {
     if (oldP.name != newP.name) {
-      _activityLogNotifier?.logAction(action: 'NAME_UPDATED', targetId: newP.id, targetName: newP.name, details: {'from': oldP.name, 'to': newP.name});
+      _activityLogNotifier?.logAction(
+          action: 'NAME_UPDATED',
+          targetId: newP.id,
+          targetName: newP.name,
+          details: {'from': oldP.name, 'to': newP.name});
     }
     if (oldP.quantity != newP.quantity) {
-      _activityLogNotifier?.logAction(action: 'QUANTITY_UPDATED', targetId: newP.id, targetName: newP.name, details: {'from': oldP.quantity, 'to': newP.quantity, 'reason': 'تعديل يدوي'});
+      _activityLogNotifier?.logAction(
+          action: 'QUANTITY_UPDATED',
+          targetId: newP.id,
+          targetName: newP.name,
+          details: {
+            'from': oldP.quantity,
+            'to': newP.quantity,
+            'reason': 'تعديل يدوي'
+          });
     }
     if (!listEquals(oldP.categories, newP.categories)) {
-      _activityLogNotifier?.logAction(action: 'CATEGORY_UPDATED', targetId: newP.id, targetName: newP.name, details: {'from': oldP.categories, 'to': newP.categories});
+      _activityLogNotifier?.logAction(
+          action: 'CATEGORY_UPDATED',
+          targetId: newP.id,
+          targetName: newP.name,
+          details: {'from': oldP.categories, 'to': newP.categories});
     }
   }
 
   void _extractCategories() {
-    final uniqueCategories = _allProducts.expand((p) => p.categories).toSet().toList();
+    final uniqueCategories =
+        _allProducts.expand((p) => p.categories).toSet().toList();
     uniqueCategories.sort();
     _allCategories = uniqueCategories;
   }
@@ -320,21 +536,34 @@ class InventoryNotifier extends ChangeNotifier {
     if (_selectedCategory == '_uncategorized_') {
       tempProducts = tempProducts.where((p) => p.categories.isEmpty).toList();
     } else if (_selectedCategory != null) {
-      tempProducts = tempProducts.where((p) => p.categories.contains(_selectedCategory)).toList();
+      tempProducts = tempProducts
+          .where((p) => p.categories.contains(_selectedCategory))
+          .toList();
     }
 
     if (_currentSearchQuery.isNotEmpty) {
       final lowerCaseQuery = _currentSearchQuery.toLowerCase();
       tempProducts = tempProducts.where((product) {
-        return [ product.name, product.sku, product.notes, product.oemPartNumber, product.compatiblePartNumber ]
-            .any((field) => field?.toLowerCase().contains(lowerCaseQuery) ?? false);
+        return [
+          product.name,
+          product.sku,
+          product.notes,
+          product.oemPartNumber,
+          product.compatiblePartNumber
+        ].any((field) => field?.toLowerCase().contains(lowerCaseQuery) ?? false);
       }).toList();
     }
 
     switch (_currentSortOption) {
-      case SortOption.nameAsc: tempProducts.sort((a, b) => a.name.compareTo(b.name)); break;
-      case SortOption.quantityAsc: tempProducts.sort((a, b) => a.quantity.compareTo(b.quantity)); break;
-      case SortOption.quantityDesc: tempProducts.sort((a, b) => b.quantity.compareTo(a.quantity)); break;
+      case SortOption.nameAsc:
+        tempProducts.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case SortOption.quantityAsc:
+        tempProducts.sort((a, b) => a.quantity.compareTo(b.quantity));
+        break;
+      case SortOption.quantityDesc:
+        tempProducts.sort((a, b) => b.quantity.compareTo(a.quantity));
+        break;
       case SortOption.dateDesc:
         tempProducts.sort((a, b) {
           final timeA = int.tryParse(a.id.split('_').last) ?? 0;
@@ -342,7 +571,8 @@ class InventoryNotifier extends ChangeNotifier {
           return timeB.compareTo(timeA);
         });
         break;
-      case SortOption.defaults: break;
+      case SortOption.defaults:
+        break;
     }
     _filteredProducts = tempProducts;
   }
