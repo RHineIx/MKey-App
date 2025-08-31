@@ -57,6 +57,8 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
     return SizedBox(
       height: 50,
       child: ListView.builder(
+        // FIX 2: Prevent clipping of the edit icon
+        clipBehavior: Clip.none,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12.0),
         itemCount: categoriesToShow.length,
@@ -66,7 +68,6 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
           final value = categoryData['value'];
           final isSelected = selectedCategory == value;
           final isEditing = _editingCategory == value;
-          // Cannot edit "All" or "Uncategorized"
           final canEdit = value != null && value != '_uncategorized_';
 
           Widget chip = ChoiceChip(
@@ -75,13 +76,15 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             onSelected: (selected) {
               if (isEditing) {
-                // If in edit mode, tapping a chip should exit edit mode
                 setState(() {
                   _editingCategory = null;
                 });
                 return;
               }
-              if (selected) {
+              // FIX 3: Deselect if already selected, otherwise select
+              if (isSelected) {
+                widget.onCategorySelected(null); // Revert to "All"
+              } else {
                 widget.onCategorySelected(value);
               }
             },
@@ -101,7 +104,8 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
                 clipBehavior: Clip.none,
                 children: [
                   chip,
-                  if (isEditing)
+                  // FIX 1 & 2: Show icon only if editable and not clipped
+                  if (isEditing && canEdit)
                     Positioned(
                       top: -8,
                       right: -8,

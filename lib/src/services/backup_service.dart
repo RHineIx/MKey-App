@@ -16,14 +16,14 @@ class BackupService {
 
   BackupService(this._githubService);
 
-  Future<void> createAndSaveBackup() async {
+  Future<String?> createAndSaveBackup() async {
     final archive = Archive();
 
     final products = await _dbHelper.getAllProducts();
     final sales = await _dbHelper.getAllSales();
     final suppliers = await _dbHelper.getAllSuppliers();
     final activityLogs = await _dbHelper.getAllActivityLogs();
-
+    
     archive.addFile(ArchiveFile('inventory.json', -1, utf8.encode(jsonEncode({'items': products.map((p) => p.toMapForJson()).toList()}))));
     archive.addFile(ArchiveFile('sales.json', -1, utf8.encode(jsonEncode(sales.map((s) => s.toMap()).toList()))));
     archive.addFile(ArchiveFile('suppliers.json', -1, utf8.encode(jsonEncode(suppliers.map((s) => s.toMap()).toList()))));
@@ -36,10 +36,12 @@ class BackupService {
 
     final Uint8List zipBytes = Uint8List.fromList(zipData);
     final fileName = 'master_key_backup_${DateTime.now().toIso8601String()}.zip';
-
-    await FileSaver.instance.saveFile(
+    
+    // Use saveAs to open file picker and get the path
+    return await FileSaver.instance.saveAs(
       name: fileName,
       bytes: zipBytes,
+      ext: 'zip',
       mimeType: MimeType.zip,
     );
   }
@@ -47,7 +49,6 @@ class BackupService {
   Future<void> restoreFromBackup(String path) async {
     final inputStream = InputFileStream(path);
     final archive = ZipDecoder().decodeBuffer(inputStream);
-
     for (final file in archive.files) {
       final data = utf8.decode(file.content as List<int>);
       final jsonData = jsonDecode(data);

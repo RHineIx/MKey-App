@@ -355,11 +355,17 @@ class _DataManagementTab extends StatelessWidget {
     showAppSnackBar(context,
         message: 'جاري تجهيز النسخة الاحتياطية...', type: NotificationType.info);
     try {
-      await backupService.createAndSaveBackup();
+      final String? path = await backupService.createAndSaveBackup();
       if (!context.mounted) return;
-      showAppSnackBar(context,
-          message: 'تم حفظ النسخة الاحتياطية بنجاح.',
-          type: NotificationType.success);
+      
+      if (path != null) {
+        showAppSnackBar(context,
+            message: 'تم حفظ النسخة في: ${path.split('/').last}',
+            type: NotificationType.success);
+      } else {
+        showAppSnackBar(context,
+            message: 'تم إلغاء عملية الحفظ.', type: NotificationType.info);
+      }
     } catch (e) {
       if (!context.mounted) return;
       showAppSnackBar(context,
