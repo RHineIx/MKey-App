@@ -19,7 +19,6 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        // Independent Services and Notifiers
         Provider(create: (context) => ConfigService()),
         ChangeNotifierProvider(
             create: (context) =>
@@ -36,15 +35,13 @@ void main() {
           create: (context) =>
               ActivityLogNotifier(context.read<GithubService>()),
         ),
-
-        // Dependent Notifiers using ProxyProvider
         ChangeNotifierProxyProvider<ActivityLogNotifier, InventoryNotifier>(
           create: (context) => InventoryNotifier(
             context.read<GithubService>(),
             null,
           ),
           update: (context, activityLogNotifier, inventoryNotifier) =>
-          inventoryNotifier!..setActivityLogNotifier(activityLogNotifier),
+              inventoryNotifier!..setActivityLogNotifier(activityLogNotifier),
         ),
         ChangeNotifierProxyProvider<InventoryNotifier, SupplierNotifier>(
           create: (context) => SupplierNotifier(
@@ -52,7 +49,7 @@ void main() {
             null,
           ),
           update: (context, inventoryNotifier, supplierNotifier) =>
-          supplierNotifier!..setInventoryNotifier(inventoryNotifier),
+              supplierNotifier!..setInventoryNotifier(inventoryNotifier),
         ),
       ],
       child: const MKeyApp(),
@@ -66,21 +63,31 @@ class MKeyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settingsNotifier = context.watch<SettingsNotifier>();
+
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        final appMode = settingsNotifier.appThemeMode;
 
-        final bool useDynamicColor = settingsNotifier.appThemeMode == AppThemeMode.system;
+        final ColorScheme lightColorScheme;
+        if (appMode == AppThemeMode.system) {
+          // Use dynamic colors if available, otherwise fall back to our manual light theme
+          lightColorScheme = lightDynamic ?? AppTheme.lightColorScheme;
+        } else {
+          // Use our manual light theme when Light mode is explicitly selected
+          lightColorScheme = AppTheme.lightColorScheme;
+        }
 
-        final ColorScheme lightColorScheme = useDynamicColor
-            ? lightDynamic ?? AppTheme.lightColorScheme
-            : AppTheme.lightColorScheme;
-
-        final ColorScheme darkColorScheme = useDynamicColor
-            ? darkDynamic ?? AppTheme.darkColorScheme
-            : AppTheme.darkColorScheme;
+        final ColorScheme darkColorScheme;
+        if (appMode == AppThemeMode.system) {
+          // Use dynamic colors if available, otherwise fall back to our manual dark theme
+          darkColorScheme = darkDynamic ?? AppTheme.darkColorScheme;
+        } else {
+          // Use our manual dark theme when Dark mode is explicitly selected
+          darkColorScheme = AppTheme.darkColorScheme;
+        }
 
         ThemeMode themeMode;
-        switch(settingsNotifier.appThemeMode) {
+        switch (appMode) {
           case AppThemeMode.light:
             themeMode = ThemeMode.light;
             break;
@@ -95,7 +102,6 @@ class MKeyApp extends StatelessWidget {
         return MaterialApp(
           title: 'MASTER KEY',
           debugShowCheckedModeBanner: false,
-
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -105,7 +111,6 @@ class MKeyApp extends StatelessWidget {
             Locale('ar'),
           ],
           locale: const Locale('ar'),
-
           theme: AppTheme.getTheme(
             colorScheme: lightColorScheme,
             fontWeight: settingsNotifier.fontWeight.value,

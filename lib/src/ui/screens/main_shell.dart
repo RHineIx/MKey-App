@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
@@ -25,6 +26,7 @@ class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
+  DateTime? _lastPressedAt;
 
   static const List<Widget> _widgetOptions = <Widget>[
     InventoryScreen(),
@@ -95,55 +97,82 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MASTER KEY'),
-        actions: [
-          IconButton(
-            icon: const Icon(Symbols.group),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => const SuppliersScreen(),
-              ));
-            },
-            tooltip: 'المورّدون',
-          ),
-          IconButton(
-            icon: const Icon(Symbols.settings),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => const SettingsScreen(),
-              ));
-            },
-            tooltip: 'الإعدادات',
-          ),
-        ],
-      ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _widgetOptions,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Symbols.inventory_2),
-            activeIcon: Icon(Symbols.inventory_2, fill: 1),
-            label: 'المخزون',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Symbols.monitoring),
-            activeIcon: Icon(Symbols.monitoring, fill: 1),
-            label: 'لوحة المعلومات',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Symbols.history),
-            activeIcon: Icon(Symbols.history, fill: 1),
-            label: 'سجل النشاط',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        // If not on the main tab, navigate back to it
+        if (_selectedIndex != 0) {
+          _onItemTapped(0);
+          return;
+        }
+
+        final now = DateTime.now();
+        final shouldExit = _lastPressedAt != null &&
+            now.difference(_lastPressedAt!) < const Duration(seconds: 2);
+
+        if (shouldExit) {
+          SystemNavigator.pop();
+        } else {
+          _lastPressedAt = now;
+          showAppSnackBar(
+            context,
+            message: 'اضغط مرة أخرى للخروج',
+            type: NotificationType.info,
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('MASTER KEY'),
+          actions: [
+            IconButton(
+              icon: const Icon(Symbols.group),
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const SuppliersScreen(),
+                ));
+              },
+              tooltip: 'المورّدون',
+            ),
+            IconButton(
+              icon: const Icon(Symbols.settings),
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ));
+              },
+              tooltip: 'الإعدادات',
+            ),
+          ],
+        ),
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: _widgetOptions,
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Symbols.inventory_2),
+              activeIcon: Icon(Symbols.inventory_2, fill: 1),
+              label: 'المخزون',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Symbols.monitoring),
+              activeIcon: Icon(Symbols.monitoring, fill: 1),
+              label: 'لوحة المعلومات',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Symbols.history),
+              activeIcon: Icon(Symbols.history, fill: 1),
+              label: 'سجل النشاط',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }
