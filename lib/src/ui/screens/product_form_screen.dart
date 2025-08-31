@@ -1,7 +1,7 @@
 // FILE: lib/src/ui/screens/product_form_screen.dart
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package.flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -46,7 +46,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _costUsdFocus = FocusNode();
   final _sellIqdFocus = FocusNode();
   final _sellUsdFocus = FocusNode();
-
+  
   File? _imageFile;
   Set<String> _selectedCategories = {};
   String? _selectedSupplierId;
@@ -75,12 +75,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _sellPriceIqdController.addListener(_convertSellIqdToUsd);
     _sellPriceUsdController.addListener(_convertSellUsdToIqd);
 
+    // Fetch suppliers for the dropdown
     Future.microtask(() => context.read<SupplierNotifier>().loadSuppliersFromDb());
   }
 
   void _convertCostIqdToUsd() {
     if (_costIqdFocus.hasFocus) {
       final exchangeRate = context.read<SettingsNotifier>().exchangeRate;
+      if (exchangeRate == 0) return;
       final iqdValue = double.tryParse(_costPriceIqdController.text) ?? 0.0;
       final usdValue = (iqdValue / exchangeRate);
       _costPriceUsdController.text = usdValue.toStringAsFixed(2);
@@ -92,13 +94,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final exchangeRate = context.read<SettingsNotifier>().exchangeRate;
       final usdValue = double.tryParse(_costPriceUsdController.text) ?? 0.0;
       final iqdValue = (usdValue * exchangeRate);
-      _costPriceIqdController.text = iqdValue.toStringAsFixed(2);
+      _costPriceIqdController.text = iqdValue.toStringAsFixed(0);
     }
   }
 
-  void _convertSellIqdToUsd() {
+    void _convertSellIqdToUsd() {
     if (_sellIqdFocus.hasFocus) {
       final exchangeRate = context.read<SettingsNotifier>().exchangeRate;
+      if (exchangeRate == 0) return;
       final iqdValue = double.tryParse(_sellPriceIqdController.text) ?? 0.0;
       final usdValue = (iqdValue / exchangeRate);
       _sellPriceUsdController.text = usdValue.toStringAsFixed(2);
@@ -110,7 +113,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final exchangeRate = context.read<SettingsNotifier>().exchangeRate;
       final usdValue = double.tryParse(_sellPriceUsdController.text) ?? 0.0;
       final iqdValue = (usdValue * exchangeRate);
-      _sellPriceIqdController.text = iqdValue.toStringAsFixed(2);
+      _sellPriceIqdController.text = iqdValue.toStringAsFixed(0);
     }
   }
 
@@ -137,13 +140,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    // Capture context before await
     final theme = Theme.of(context);
-
+    
     final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
     if (pickedFile == null) return;
-
-    // Check if mounted before using context again
+    
     if (!mounted) return;
 
     final croppedFile = await ImageCropper().cropImage(
@@ -169,14 +170,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _imageFile = File(croppedFile.path);
     });
   }
-
+  
   Future<void> _submitForm() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
+    
     setState(() => _isSaving = true);
 
     final notifier = context.read<InventoryNotifier>();
-
+    
     final productData = Product(
       id: widget.product?.id ?? 'item_${DateTime.now().millisecondsSinceEpoch}',
       name: _nameController.text.trim(),
@@ -201,7 +202,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       } else {
         await notifier.addProduct(productData, _imageFile);
       }
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم الحفظ بنجاح!'), backgroundColor: Colors.green),
@@ -249,7 +250,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             _buildSectionTitle('صورة المنتج'),
             _buildImagePicker(),
             const SizedBox(height: 24),
-
+            
             _buildSectionTitle('المعلومات الأساسية'),
             TextFormField(
               controller: _nameController,
@@ -262,20 +263,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               decoration: const InputDecoration(labelText: 'SKU (رقم المنتج)'),
               validator: (value) => value!.isEmpty ? 'هذا الحقل مطلوب' : null,
             ),
-            const SizedBox(height: 16),
+             const SizedBox(height: 16),
             TextFormField(
               controller: _oemPartNumberController,
               decoration: const InputDecoration(labelText: 'رقم القطعة الأصلي (OEM)'),
             ),
-            const SizedBox(height: 16),
+             const SizedBox(height: 16),
             TextFormField(
               controller: _compatiblePartNumberController,
               decoration: const InputDecoration(labelText: 'أرقام القطع المتوافقة (بينها ,)'),
             ),
             const SizedBox(height: 24),
-
+            
             _buildSectionTitle('الفئات'),
-            CategoryInput(
+             CategoryInput(
               initialCategories: _selectedCategories,
               onChanged: (newCategories) {
                 _selectedCategories = newCategories;
@@ -284,7 +285,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 24),
 
             _buildSectionTitle('المخزون والمورّد'),
-            Row(
+             Row(
               children: [
                 Expanded(
                   child: TextFormField(
@@ -306,15 +307,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 16),
             Consumer<SupplierNotifier>(
               builder: (context, notifier, child) {
+                // Ensure the selected ID is valid
+                final validSupplierIds = notifier.suppliers.map((s) => s.id).toSet();
+                if (_selectedSupplierId != null && !validSupplierIds.contains(_selectedSupplierId)) {
+                  _selectedSupplierId = null;
+                }
+                
                 return DropdownButtonFormField<String>(
-                  initialValue: _selectedSupplierId, // Corrected from 'value'
+                  value: _selectedSupplierId,
                   decoration: const InputDecoration(labelText: 'المورّد (اختياري)'),
                   items: [
                     const DropdownMenuItem<String>(
                       value: null,
                       child: Text('-- اختر مورّد --'),
                     ),
-                    ...notifier.suppliers.map((Supplier s) { // Corrected: removed .toList()
+                    ...notifier.suppliers.map((Supplier s) {
                       return DropdownMenuItem<String>(
                         value: s.id,
                         child: Text(s.name),
@@ -332,7 +339,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             const SizedBox(height: 24),
 
             _buildSectionTitle('التسعير'),
-            Row(
+             Row(
               children: [
                 Expanded(
                   child: TextFormField(
@@ -343,7 +350,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                Expanded(
+                 Expanded(
                   child: TextFormField(
                     controller: _costPriceUsdController,
                     focusNode: _costUsdFocus,
@@ -412,14 +419,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               child: _imageFile != null
                   ? Image.file(_imageFile!, fit: BoxFit.cover)
                   : (widget.product?.imagePath != null && widget.product!.imagePath!.isNotEmpty
-                  ? CachedNetworkImage(
-                imageUrl: context.read<GithubService>().getImageUrl(widget.product!.imagePath!),
-                httpHeaders: context.read<GithubService>().authHeaders,
-                fit: BoxFit.cover,
-                placeholder: (c, u) => const Center(child: CircularProgressIndicator()),
-                errorWidget: (c, u, e) => const Icon(Symbols.broken_image, size: 64),
-              )
-                  : const Center(child: Icon(Symbols.key, size: 64))),
+                      ? CachedNetworkImage(
+                          imageUrl: context.read<GithubService>().getImageUrl(widget.product!.imagePath!),
+                          httpHeaders: context.read<GithubService>().authHeaders,
+                          fit: BoxFit.cover,
+                          placeholder: (c, u) => const Center(child: CircularProgressIndicator()),
+                          errorWidget: (c, u, e) => const Icon(Symbols.broken_image, size: 64),
+                        )
+                      : const Center(child: Icon(Symbols.key, size: 64))),
             ),
           ),
           const SizedBox(height: 16),

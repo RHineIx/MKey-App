@@ -19,7 +19,7 @@ class GithubService extends ChangeNotifier {
   String? _repo;
   String? _token;
   bool _isConfigured = false;
-
+  
   final Map<String, String?> _fileShas = {};
 
   GithubService(this._configService) {
@@ -38,10 +38,10 @@ class GithubService extends ChangeNotifier {
   String? get token => _token;
 
   Map<String, String> get authHeaders => {
-    'Authorization': 'Bearer $_token',
-    'Accept': 'application/vnd.github.v3+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
+        'Authorization': 'Bearer $_token',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
 
   Future<void> loadConfig() async {
     final config = await _configService.loadGitHubConfig();
@@ -92,11 +92,11 @@ class GithubService extends ChangeNotifier {
   Future<void> _saveJsonFile(String filePath, dynamic data, String commitMessage) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
     final url = 'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
-
+    
     const jsonEncoder = JsonEncoder.withIndent('  ');
     final String prettyJson = jsonEncoder.convert(data);
     final String content = base64.encode(utf8.encode(prettyJson));
-
+    
     final body = {
       'message': commitMessage,
       'content': content,
@@ -111,7 +111,7 @@ class GithubService extends ChangeNotifier {
       throw Exception('Failed to save $filePath: Status code ${response.statusCode}');
     }
   }
-
+  
   Future<List<Product>> fetchInventory() async {
     final data = await _fetchAndParse('inventory.json', {'items': []});
     if (data['items'] is List) {
@@ -143,7 +143,7 @@ class GithubService extends ChangeNotifier {
     }
     return [];
   }
-
+  
   Future<void> saveInventory(List<Product> products) async {
     final dataToSave = {
       'items': products.map((p) => p.toMapForJson()).toList(),
@@ -154,6 +154,11 @@ class GithubService extends ChangeNotifier {
   Future<void> saveSales(List<Sale> sales) async {
     final dataToSave = sales.map((s) => s.toMap()).toList();
     await _saveJsonFile('sales.json', dataToSave, 'Update sales data');
+  }
+  
+  Future<void> saveSuppliers(List<Supplier> suppliers) async {
+    final dataToSave = suppliers.map((s) => s.toMap()).toList();
+    await _saveJsonFile('suppliers.json', dataToSave, 'Update suppliers data');
   }
 
   Future<void> saveActivityLogs(List<ActivityLog> logs) async {
