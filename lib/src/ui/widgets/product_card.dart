@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_detail_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
@@ -17,8 +18,8 @@ class ProductCard extends StatelessWidget {
   const ProductCard({super.key, required this.product});
 
   void _showSaleDialog(BuildContext context) async {
-    // Capture context-dependent objects before the async gap
     final notifier = context.read<InventoryNotifier>();
+    final settings = context.read<SettingsNotifier>();
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -26,13 +27,18 @@ class ProductCard extends StatelessWidget {
       builder: (context) => SaleDialog(product: product),
     );
 
-    // Check if the widget is still in the tree after the async gap
     if (result == null || !scaffoldMessenger.mounted) return;
 
-    final quantity = result['quantity'] as int;
-    final price = result['price'] as double;
     try {
-      await notifier.recordSale(product, quantity, price);
+      await notifier.recordSale(
+        product: product,
+        quantity: result['quantity'] as int,
+        price: result['price'] as double,
+        notes: result['notes'] as String,
+        saleDate: result['saleDate'] as DateTime,
+        currency: settings.activeCurrency,
+        exchangeRate: settings.exchangeRate,
+      );
       scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('تم تسجيل البيع بنجاح'), backgroundColor: Colors.green),
       );
@@ -84,7 +90,7 @@ class ProductCard extends StatelessWidget {
 
     final bool isOutOfStock = product.quantity <= 0;
     final bool isLowStock = !isOutOfStock && product.quantity <= product.alertLevel;
-
+    
     final String badgeText;
     final Color badgeColor;
 
@@ -121,16 +127,16 @@ class ProductCard extends StatelessWidget {
                     color: colorScheme.surfaceContainerHighest,
                     child: (product.imagePath != null && product.imagePath!.isNotEmpty)
                         ? CachedNetworkImage(
-                      imageUrl: githubService.getImageUrl(product.imagePath!),
-                      httpHeaders: githubService.authHeaders,
-                      fit: BoxFit.contain,
-                      placeholder: (context, url) =>
-                      const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      errorWidget: (context, url, error) => const Center(
-                          child: Icon(Symbols.broken_image, size: 48, color: Colors.grey)),
-                    )
+                            imageUrl: githubService.getImageUrl(product.imagePath!),
+                            httpHeaders: githubService.authHeaders,
+                            fit: BoxFit.contain,
+                            placeholder: (context, url) =>
+                                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            errorWidget: (context, url, error) => const Center(
+                                child: Icon(Symbols.broken_image, size: 48, color: Colors.grey)),
+                          )
                         : const Center(
-                        child: Icon(Symbols.key, size: 48, color: Colors.grey)),
+                            child: Icon(Symbols.key, size: 48, color: Colors.grey)),
                   ),
                   Positioned(
                     top: 8,
@@ -139,9 +145,9 @@ class ProductCard extends StatelessWidget {
                       label: Text(badgeText),
                       backgroundColor: badgeColor,
                       labelStyle: textTheme.labelMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.1,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.1,
                       ),
                       side: BorderSide.none,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
@@ -194,7 +200,7 @@ class ProductCard extends StatelessWidget {
                                   backgroundColor: colorScheme.primary,
                                   foregroundColor: colorScheme.onPrimary,
                                   disabledBackgroundColor:
-                                  colorScheme.onSurface.withAlpha(30),
+                                      colorScheme.onSurface.withAlpha(30),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
                                   ),
