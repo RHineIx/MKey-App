@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.workshop.ix.mykeyapp"
+    namespace = "com.workshop.ix"
     compileSdk = 36
 
     compileOptions {
@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.workshop.ix.mykeyapp"
+        applicationId = "com.workshop.ix"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1
@@ -33,6 +33,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
