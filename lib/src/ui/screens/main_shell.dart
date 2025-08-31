@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/activity_log_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/dashboard_screen.dart';
@@ -11,6 +12,7 @@ import 'package:rhineix_mkey_app/src/ui/screens/inventory_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/settings_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/suppliers_screen.dart';
 import 'package:app_links/app_links.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -57,7 +59,6 @@ class _MainShellState extends State<MainShell> {
 
   void _processLink(Uri uri) {
     String fragment = uri.fragment;
-    // Handle both /#setup= and #setup=
     if (fragment.startsWith('/')) {
         fragment = fragment.substring(1);
     }
@@ -76,20 +77,12 @@ class _MainShellState extends State<MainShell> {
           final githubService = context.read<GithubService>();
           githubService.saveConfig(username, repo, pat);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('تم استلام إعدادات المزامنة بنجاح!'),
-                backgroundColor: Colors.green),
-          );
+          showAppSnackBar(context, message: 'تم استلام إعدادات المزامنة بنجاح!', type: NotificationType.success);
         } else {
             throw Exception('Incomplete config data');
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('فشل معالجة رابط الإعداد: $e'),
-              backgroundColor: Colors.red),
-        );
+        showAppSnackBar(context, message: 'فشل معالجة رابط الإعداد: $e', type: NotificationType.error);
       }
     }
   }

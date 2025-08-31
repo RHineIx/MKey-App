@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_detail_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/screens/product_form_screen.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/sale_dialog.dart';
 
@@ -20,13 +22,12 @@ class ProductCard extends StatelessWidget {
   void _showSaleDialog(BuildContext context) async {
     final notifier = context.read<InventoryNotifier>();
     final settings = context.read<SettingsNotifier>();
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => SaleDialog(product: product),
     );
-    if (result == null || !scaffoldMessenger.mounted) return;
+    if (result == null || !context.mounted) return;
 
     try {
       await notifier.recordSale(
@@ -38,21 +39,19 @@ class ProductCard extends StatelessWidget {
         currency: settings.activeCurrency,
         exchangeRate: settings.exchangeRate,
       );
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-            content: Text('تم تسجيل البيع بنجاح'),
-            backgroundColor: Colors.green),
-      );
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'تم تسجيل البيع بنجاح', type: NotificationType.success);
+      }
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-            content: Text('فشل تسجيل البيع: $e'), backgroundColor: Colors.red),
-      );
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'فشل تسجيل البيع: $e', type: NotificationType.error);
+      }
     }
   }
 
   void _deleteProduct(BuildContext context) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final notifier = context.read<InventoryNotifier>();
 
     final confirmed = await showConfirmationDialog(
@@ -60,19 +59,23 @@ class ProductCard extends StatelessWidget {
       title: 'تأكيد الحذف',
       content: 'هل أنت متأكد من رغبتك في حذف المنتج "${product.name}"؟',
       confirmText: 'حذف',
+      icon: Symbols.delete,
+      isDestructive: true,
     );
 
-    if (confirmed != true || !scaffoldMessenger.mounted) return;
+    if (confirmed != true || !context.mounted) return;
+
     try {
       await notifier.deleteProduct(product.id);
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-            content: Text('تم حذف المنتج بنجاح'), backgroundColor: Colors.green),
-      );
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'تم حذف المنتج بنجاح', type: NotificationType.success);
+      }
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('فشل الحذف: $e'), backgroundColor: Colors.red),
-      );
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'فشل الحذف: $e', type: NotificationType.error);
+      }
     }
   }
 
@@ -83,7 +86,6 @@ class ProductCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final githubService = Provider.of<GithubService>(context, listen: false);
 
-    // NEW: Listen to notifier for selection mode changes
     final inventoryNotifier = context.watch<InventoryNotifier>();
     final isSelectionMode = inventoryNotifier.isSelectionModeActive;
     final isSelected = inventoryNotifier.selectedItemIds.contains(product.id);

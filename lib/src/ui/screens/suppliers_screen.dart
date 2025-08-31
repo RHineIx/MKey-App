@@ -2,8 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/supplier_dialog.dart';
 
 class SuppliersScreen extends StatefulWidget {
@@ -26,14 +29,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
 
   void _showSupplierDialog({Supplier? supplier}) async {
     final notifier = context.read<SupplierNotifier>();
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => SupplierDialog(supplier: supplier),
     );
-
-    if (result == null || !scaffoldMessenger.mounted) return;
+    if (result == null || !mounted) return;
 
     final name = result['name']!;
     final phone = result['phone'];
@@ -45,58 +45,57 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       } else {
         await notifier.addSupplier(name, phone);
       }
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green),
-      );
+      if (mounted) {
+        showAppSnackBar(context,
+            message: 'تم الحفظ بنجاح', type: NotificationType.success);
+      }
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        showAppSnackBar(context,
+            message: 'فشل الحفظ: $e', type: NotificationType.error);
+      }
     }
   }
 
   void _deleteSupplier(Supplier supplier) async {
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final notifier = context.read<SupplierNotifier>();
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: Text('هل أنت متأكد من حذف المورّد "${supplier.name}"؟ سيتم فك ارتباطه من جميع المنتجات.'),
-        actions: [
-          TextButton(onPressed: () => navigator.pop(false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => navigator.pop(true), child: const Text('حذف')),
-        ],
-      ),
-    );
+    final confirmed = await showConfirmationDialog(
+        context: context,
+        title: 'تأكيد الحذف',
+        content:
+            'هل أنت متأكد من حذف المورّد "${supplier.name}"؟ سيتم فك ارتباطه من جميع المنتجات.',
+        confirmText: 'حذف',
+        icon: Symbols.delete,
+        isDestructive: true);
 
-    if (confirmed != true || !scaffoldMessenger.mounted) return;
+    if (confirmed != true || !mounted) return;
 
     try {
       await notifier.deleteSupplier(supplier.id);
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.green),
-      );
+      if (mounted) {
+        showAppSnackBar(context,
+            message: 'تم الحذف بنجاح', type: NotificationType.success);
+      }
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('فشل الحذف: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        showAppSnackBar(context,
+            message: 'فشل الحذف: $e', type: NotificationType.error);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<SupplierNotifier>();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('إدارة المورّدين'),
         actions: [
           IconButton(
             icon: const Icon(Symbols.sync),
-            onPressed: notifier.isLoading ? null : () => notifier.syncFromNetwork(),
+            onPressed:
+                notifier.isLoading ? null : () => notifier.syncFromNetwork(),
             tooltip: 'تحديث',
           ),
         ],
@@ -121,7 +120,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     }
 
     if (notifier.suppliers.isEmpty) {
-      return const Center(child: Text('لا يوجد مورّدون. قم بإضافة واحد جديد.'));
+      return const Center(
+          child: Text('لا يوجد مورّدون. قم بإضافة واحد جديد.'));
     }
 
     return ListView.builder(
@@ -131,7 +131,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: ListTile(
-            title: Text(supplier.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(supplier.name,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(supplier.phone ?? 'لا يوجد رقم هاتف'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -141,7 +142,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                   onPressed: () => _showSupplierDialog(supplier: supplier),
                 ),
                 IconButton(
-                  icon: Icon(Symbols.delete, color: Theme.of(context).colorScheme.error),
+                  icon: Icon(Symbols.delete,
+                      color: Theme.of(context).colorScheme.error),
                   onPressed: () => _deleteSupplier(supplier),
                 ),
               ],

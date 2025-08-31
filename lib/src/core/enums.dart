@@ -1,56 +1,27 @@
 // FILE: lib/src/core/enums.dart
 import 'package:flutter/material.dart';
 
-// New enum for theme selection
-enum AppThemeMode { light, dark, system }
+// NEW: Enum for notification types
+enum NotificationType { success, error, info, syncing }
 
-extension AppThemeModeExtension on AppThemeMode {
-  String get displayName {
-    switch (this) {
-      case AppThemeMode.light:
-        return 'فاتح';
-      case AppThemeMode.dark:
-        return 'مظلم';
-      case AppThemeMode.system:
-        return 'متجاوب';
-    }
-  }
+enum AppThemeMode {
+  light('فاتح'),
+  dark('داكن'),
+  system('النظام');
+
+  const AppThemeMode(this.displayName);
+  final String displayName;
 }
-
 
 enum AppFontWeight {
-  light,
-  normal,
-  medium,
-  bold,
-}
+  light('خفيف', FontWeight.w300),
+  normal('عادي', FontWeight.w400),
+  medium('متوسط', FontWeight.w500),
+  bold('عريض', FontWeight.w700);
 
-extension AppFontWeightExtension on AppFontWeight {
-  FontWeight get value {
-    switch (this) {
-      case AppFontWeight.light:
-        return FontWeight.w300;
-      case AppFontWeight.normal:
-        return FontWeight.w400;
-      case AppFontWeight.medium:
-        return FontWeight.w500;
-      case AppFontWeight.bold:
-        return FontWeight.w700;
-    }
-  }
-
-  String get displayName {
-    switch (this) {
-      case AppFontWeight.light:
-        return 'خفيف';
-      case AppFontWeight.normal:
-        return 'عادي';
-      case AppFontWeight.medium:
-        return 'متوسط';
-      case AppFontWeight.bold:
-        return 'عريض (Bold)';
-    }
-  }
+  const AppFontWeight(this.displayName, this.value);
+  final String displayName;
+  final FontWeight value;
 }
 
 enum SortOption {
@@ -58,9 +29,15 @@ enum SortOption {
   nameAsc,
   quantityAsc,
   quantityDesc,
-  dateDesc,
+  dateDesc
 }
 
 enum DashboardPeriod { today, week, month }
 
-enum ActivityLogFilter { all, sale, quantity, lifecycle, other }
+enum ActivityLogFilter {
+  all,
+  sale,
+  quantity,
+  lifecycle,
+  other,
+}
