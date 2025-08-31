@@ -94,6 +94,7 @@ class _SaleDialogState extends State<SaleDialog> {
 
     return AlertDialog(
       title: const Text('تسجيل عملية بيع'),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
