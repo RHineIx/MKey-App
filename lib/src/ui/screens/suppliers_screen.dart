@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
+import 'package:rhineix_mkey_app/src/ui/widgets/supplier_dialog.dart';
 
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({super.key});
@@ -23,6 +25,63 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     });
   }
 
+  void _showSupplierDialog({Supplier? supplier}) async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => SupplierDialog(supplier: supplier),
+    );
+
+    if (result != null && mounted) {
+      final notifier = context.read<SupplierNotifier>();
+      final name = result['name']!;
+      final phone = result['phone'];
+      final isEditing = supplier != null;
+      
+      try {
+        if (isEditing) {
+          await notifier.updateSupplier(supplier.id, name, phone);
+        } else {
+          await notifier.addSupplier(name, phone);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل الحفظ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _deleteSupplier(Supplier supplier) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد الحذف'),
+        content: Text('هل أنت متأكد من حذف المورّد "${supplier.name}"؟ سيتم فك ارتباطه من جميع المنتجات.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('حذف')),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final notifier = context.read<SupplierNotifier>();
+      try {
+        await notifier.deleteSupplier(supplier.id);
+         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.green),
+        );
+      } catch (e) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل الحذف: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<SupplierNotifier>();
@@ -39,10 +98,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       ),
       body: _buildBody(notifier),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'suppliers_add_fab', // Unique tag
-        onPressed: () {
-          // TODO: Implement Add/Edit Supplier Dialog
-        },
+        heroTag: 'suppliers_add_fab',
+        onPressed: _showSupplierDialog,
         tooltip: 'إضافة مورّد جديد',
         child: const Icon(Symbols.add),
       ),
@@ -76,15 +133,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Symbols.edit),
-                  onPressed: () {
-                    // TODO: Implement Add/Edit Supplier Dialog (edit mode)
-                  },
+                  onPressed: () => _showSupplierDialog(supplier: supplier),
                 ),
                 IconButton(
                   icon: Icon(Symbols.delete, color: Theme.of(context).colorScheme.error),
-                  onPressed: () {
-                    // TODO: Implement delete logic with confirmation
-                  },
+                  onPressed: () => _deleteSupplier(supplier),
                 ),
               ],
             ),
