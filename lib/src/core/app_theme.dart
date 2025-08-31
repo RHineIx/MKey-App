@@ -117,7 +117,7 @@ class AppTheme {
               fontSize: 20,
               color: colorScheme.onSurface),
         ),
-        [cite_start]cardTheme: CardThemeData( // FIXED: CardTheme -> CardThemeData [cite: 1]
+        cardTheme: CardThemeData(
           elevation: 1.5,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -135,7 +135,7 @@ class AppTheme {
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
-        [cite_start]dialogTheme: DialogThemeData( // FIXED: DialogTheme -> DialogThemeData [cite: 2]
+        dialogTheme: DialogThemeData(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
