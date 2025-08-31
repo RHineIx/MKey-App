@@ -8,4 +8,4 @@
 -keep class io.flutter.plugins.** { *; }
 
 # Keep your application's main activity class.
--keep class com.workshop.ix.mykeyapp.MainActivity { *; }
+-keep class com.workshop.ix.MainActivity { *; }
