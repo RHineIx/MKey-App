@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:rhineix_mkey_app/src/models/activity_log_model.dart';
 import 'package:rhineix_mkey_app/src/models/github_file_model.dart';
@@ -14,7 +13,6 @@ import 'package:rhineix_mkey_app/src/services/config_service.dart';
 class GithubService extends ChangeNotifier {
   final ConfigService _configService;
   late final Dio _dio;
-  late final CacheOptions _cacheOptions;
 
   String? _username;
   String? _repo;
@@ -24,12 +22,7 @@ class GithubService extends ChangeNotifier {
   final Map<String, String?> _fileShas = {};
 
   GithubService(this._configService) {
-    _cacheOptions = CacheOptions(
-      store: MemCacheStore(),
-      policy: CachePolicy.refresh,
-      maxStale: const Duration(days: 7),
-    );
-    _dio = Dio()..interceptors.add(DioCacheInterceptor(options: _cacheOptions));
+    _dio = Dio();
     loadConfig();
   }
 
@@ -39,10 +32,10 @@ class GithubService extends ChangeNotifier {
   String? get token => _token;
 
   Map<String, String> get authHeaders => {
-    'Authorization': 'Bearer $_token',
-    'Accept': 'application/vnd.github.v3+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
+        'Authorization': 'Bearer $_token',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
 
   Future<void> loadConfig() async {
     final config = await _configService.loadGitHubConfig();
@@ -69,17 +62,19 @@ class GithubService extends ChangeNotifier {
 
   Future<dynamic> _fetchAndParse(String filePath, dynamic defaultValue) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
-    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
+    final url =
+        'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
     try {
       final response = await _dio.get(url, options: Options(headers: authHeaders));
       if (response.statusCode == 200) {
         final responseBody = response.data;
         _fileShas[filePath] = responseBody['sha'];
-        final String content = utf8.decode(
-            base64.decode(responseBody['content'].replaceAll('\n', '')));
+        final String content = utf8
+            .decode(base64.decode(responseBody['content'].replaceAll('\n', '')));
         return json.decode(content);
       } else {
-        throw Exception('Failed to load $filePath: Status code ${response.statusCode}');
+        throw Exception(
+            'Failed to load $filePath: Status code ${response.statusCode}');
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
@@ -90,10 +85,13 @@ class GithubService extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveJsonFile(String filePath, dynamic data, String commitMessage) async {
+  Future<void> _saveJsonFile(
+      String filePath, dynamic data, String commitMessage) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
-    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
+    final url =
+        'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
 
+    // FIXED: Use JsonEncoder with indentation for pretty printing
     const jsonEncoder = JsonEncoder.withIndent('  ');
     final String prettyJson = jsonEncoder.convert(data);
     final String content = base64.encode(utf8.encode(prettyJson));
@@ -103,34 +101,38 @@ class GithubService extends ChangeNotifier {
       'content': content,
       'sha': _fileShas[filePath],
     };
-
-    final response = await _dio.put(url, data: body, options: Options(headers: authHeaders));
-
+    final response =
+        await _dio.put(url, data: body, options: Options(headers: authHeaders));
     if (response.statusCode == 200 || response.statusCode == 201) {
       _fileShas[filePath] = response.data['content']['sha'];
     } else {
-      throw Exception('Failed to save $filePath: Status code ${response.statusCode}');
+      throw Exception(
+          'Failed to save $filePath: Status code ${response.statusCode}');
     }
   }
 
-  Future<void> createArchiveFile(String fileName, List<Sale> salesToArchive) async {
+  Future<void> createArchiveFile(
+      String fileName, List<Sale> salesToArchive) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
     final filePath = 'archive/$fileName';
-    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
+    final url =
+        'https://api.github.com/repos/$_username/$_repo/contents/$filePath';
 
+    // FIXED: Use JsonEncoder with indentation for pretty printing
     const jsonEncoder = JsonEncoder.withIndent('  ');
-    final String prettyJson = jsonEncoder.convert(salesToArchive.map((s) => s.toMap()).toList());
+    final String prettyJson =
+        jsonEncoder.convert(salesToArchive.map((s) => s.toMap()).toList());
     final String content = base64.encode(utf8.encode(prettyJson));
 
     final body = {
       'message': 'Archive sales data: $fileName',
       'content': content,
     };
-
-    final response = await _dio.put(url, data: body, options: Options(headers: authHeaders));
-
+    final response =
+        await _dio.put(url, data: body, options: Options(headers: authHeaders));
     if (response.statusCode != 201) {
-      throw Exception('Failed to create archive file: Status code ${response.statusCode}');
+      throw Exception(
+          'Failed to create archive file: Status code ${response.statusCode}');
     }
   }
 
@@ -140,11 +142,13 @@ class GithubService extends ChangeNotifier {
     try {
       final response = await _dio.get(url, options: Options(headers: authHeaders));
       if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List).map((item) => GithubFile.fromJson(item)).toList();
+        return (response.data as List)
+            .map((item) => GithubFile.fromJson(item))
+            .toList();
       }
       return [];
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return []; // Directory not found
+      if (e.response?.statusCode == 404) return [];
       throw Exception('Failed to list directory: ${e.message}');
     }
   }
@@ -156,16 +160,20 @@ class GithubService extends ChangeNotifier {
       'message': 'Cleanup: Delete unused file $path',
       'sha': sha,
     };
-    final response = await _dio.delete(url, data: body, options: Options(headers: authHeaders));
+    final response = await _dio.delete(url,
+        data: body, options: Options(headers: authHeaders));
     if (response.statusCode != 200) {
-      throw Exception('Failed to delete file: Status code ${response.statusCode}');
+      throw Exception(
+          'Failed to delete file: Status code ${response.statusCode}');
     }
   }
 
   Future<List<Product>> fetchInventory() async {
     final data = await _fetchAndParse('inventory.json', {'items': []});
     if (data['items'] is List) {
-      return (data['items'] as List).map((item) => Product.fromJson(item)).toList();
+      return (data['items'] as List)
+          .map((item) => Product.fromJson(item))
+          .toList();
     }
     return [];
   }
@@ -218,7 +226,6 @@ class GithubService extends ChangeNotifier {
 
   Future<String> uploadImage(File imageFile, String sku) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
-
     final fileName = 'img_${sku}_${DateTime.now().millisecondsSinceEpoch}.webp';
     final path = 'images/$fileName';
     final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
@@ -230,13 +237,13 @@ class GithubService extends ChangeNotifier {
       'message': 'Upload image: $fileName',
       'content': content,
     };
-
-    final response = await _dio.put(url, data: body, options: Options(headers: authHeaders));
-
+    final response =
+        await _dio.put(url, data: body, options: Options(headers: authHeaders));
     if (response.statusCode == 201) {
       return response.data['content']['path'];
     } else {
-      throw Exception('Failed to upload image: Status code ${response.statusCode}');
+      throw Exception(
+          'Failed to upload image: Status code ${response.statusCode}');
     }
   }
 }
