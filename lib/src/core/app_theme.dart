@@ -6,7 +6,7 @@ class AppTheme {
   // This remains the seed for the DYNAMIC (System) theme
   static const Color _seedColor = Color(0xFF2A69C7);
 
-  // NEW: Manually defined light theme from website's CSS
+  // Manually defined light theme from website's CSS
   static const ColorScheme lightColorScheme = ColorScheme(
     brightness: Brightness.light,
     primary: Color(0xFF2A69C7),
@@ -40,7 +40,7 @@ class AppTheme {
     inversePrimary: Color(0xFFACC7FF),
   );
 
-  // NEW: Manually defined dark theme from website's CSS
+  // Manually defined dark theme from website's CSS
   static const ColorScheme darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
     primary: Color(0xFF3D83EB), // from --accent-color (dark)
@@ -87,7 +87,8 @@ class AppTheme {
       displayMedium: textTheme.displayMedium?.copyWith(fontWeight: fontWeight),
       displaySmall: textTheme.displaySmall?.copyWith(fontWeight: fontWeight),
       headlineLarge: textTheme.headlineLarge?.copyWith(fontWeight: fontWeight),
-      headlineMedium: textTheme.headlineMedium?.copyWith(fontWeight: fontWeight),
+      headlineMedium:
+          textTheme.headlineMedium?.copyWith(fontWeight: fontWeight),
       headlineSmall: textTheme.headlineSmall?.copyWith(fontWeight: fontWeight),
       titleLarge: textTheme.titleLarge?.copyWith(fontWeight: fontWeight),
       titleMedium: textTheme.titleMedium?.copyWith(fontWeight: fontWeight),
@@ -116,7 +117,7 @@ class AppTheme {
               fontSize: 20,
               color: colorScheme.onSurface),
         ),
-        cardTheme: CardTheme(
+        [cite_start]cardTheme: CardThemeData( // FIXED: CardTheme -> CardThemeData [cite: 1]
           elevation: 1.5,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -134,7 +135,7 @@ class AppTheme {
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
-        dialogTheme: DialogTheme(
+        [cite_start]dialogTheme: DialogThemeData( // FIXED: DialogTheme -> DialogThemeData [cite: 2]
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
