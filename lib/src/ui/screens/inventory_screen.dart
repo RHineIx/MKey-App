@@ -53,12 +53,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _onFilterChanged() {
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    if (_scrollController.hasClients && _scrollController.position.pixels > 0) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<InventoryNotifier>();
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -117,7 +120,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text('حدث خطأ:\n${notifier.error}', textAlign: TextAlign.center),
+            child:
+            Text('حدث خطأ:\n${notifier.error}', textAlign: TextAlign.center),
           ),
         );
       }
@@ -135,7 +139,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
           mainAxisSpacing: 12.0,
           childAspectRatio: 0.65,
         ),
-        itemCount: notifier.displayedProducts.length + (notifier.isLoadingMore ? 1 : 0),
+        itemCount:
+        notifier.displayedProducts.length + (notifier.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == notifier.displayedProducts.length) {
             return const Center(child: CircularProgressIndicator());

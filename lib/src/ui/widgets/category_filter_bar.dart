@@ -6,6 +6,7 @@ import 'package:rhineix_mkey_app/src/ui/widgets/category_edit_dialog.dart';
 
 class CategoryFilterBar extends StatefulWidget {
   final ValueChanged<String?> onCategorySelected;
+
   const CategoryFilterBar({
     super.key,
     required this.onCategorySelected,
@@ -27,13 +28,27 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
         child: CategoryEditDialog(oldName: oldName),
       ),
     );
-    setState(() {
-      _editingCategory = null;
-    });
+
+    // Deactivate edit mode regardless of the outcome
+    if (mounted) {
+      setState(() {
+        _editingCategory = null;
+      });
+    }
+
     if (newName != null && newName.isNotEmpty && newName != oldName) {
       if (context.mounted) {
+        // The notifier will handle updating the list and UI
         notifier.renameCategory(oldName, newName);
       }
+    }
+  }
+
+  void _deactivateEditMode() {
+    if (_editingCategory != null) {
+      setState(() {
+        _editingCategory = null;
+      });
     }
   }
 
@@ -56,22 +71,9 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
 
     return SizedBox(
       height: 50,
-      child: ShaderMask(
-        shaderCallback: (Rect bounds) {
-          return const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: <Color>[
-              Colors.transparent,
-              Colors.black,
-              Colors.black,
-              Colors.transparent,
-            ],
-            // Adjust stops to control the fade width
-            stops: [0.0, 0.05, 0.95, 1.0],
-          ).createShader(bounds);
-        },
-        blendMode: BlendMode.dstIn,
+      child: GestureDetector(
+        // If user taps outside a chip, deactivate edit mode
+        onTap: _deactivateEditMode,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -84,31 +86,48 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
             final isEditing = _editingCategory == value;
             final canEdit = value != null && value != '_uncategorized_';
 
-            final chip = TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
-                foregroundColor: isSelected
+            final chip = ChoiceChip(
+              label: Text(label),
+              labelStyle: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isSelected
                     ? Theme.of(context).colorScheme.onPrimary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
-              onPressed: () {
-                if(isEditing) {
-                  setState(() => _editingCategory = null);
-                  return;
-                }
+              selected: isSelected,
+              onSelected: (selected) {
+                // Deactivate edit mode if a chip is tapped
+                _deactivateEditMode();
                 widget.onCategorySelected(value);
               },
-              child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor:
+              Theme.of(context).colorScheme.surfaceContainerHighest,
+              selectedColor: Theme.of(context).colorScheme.primary,
+              showCheckmark: false,
+              shape: const StadiumBorder(),
+              side: BorderSide.none,
             );
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: GestureDetector(
-                onLongPress: canEdit ? () => setState(() => _editingCategory = value) : null,
+                onLongPress: canEdit
+                    ? () {
+                  setState(() {
+                    _editingCategory = value;
+                  });
+                }
+                    : null,
+                // Use onTap on the GestureDetector to handle taps on the Stack area
+                onTap: () {
+                  if (isEditing) {
+                    // If already in edit mode, tapping again deactivates it
+                    _deactivateEditMode();
+                  } else {
+                    // Otherwise, perform the normal selection
+                    widget.onCategorySelected(value);
+                  }
+                },
                 child: Stack(
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
@@ -127,7 +146,8 @@ class _CategoryFilterBarState extends State<CategoryFilterBar> {
                               shape: BoxShape.circle,
                               boxShadow: kElevationToShadow[2],
                             ),
-                            child: const Icon(Symbols.edit, size: 16, color: Colors.white),
+                            child: const Icon(Symbols.edit,
+                                size: 16, color: Colors.white),
                           ),
                         ),
                       ),

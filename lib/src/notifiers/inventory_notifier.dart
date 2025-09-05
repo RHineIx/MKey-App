@@ -39,7 +39,6 @@ class InventoryNotifier extends ChangeNotifier {
   String _currentSearchQuery = '';
   String? _selectedCategory;
   SortOption _currentSortOption = SortOption.defaults;
-
   int _currentPage = 0;
   bool _hasMore = true;
 
@@ -69,7 +68,8 @@ class InventoryNotifier extends ChangeNotifier {
         _firestoreService.getProductsStream().listen((products) {
           _allProductsFromStream = products;
           _extractCategories();
-          _applyFiltersAndSortAndPaginate(reset: true);
+          _applyFiltersAndSort();
+          _loadInitialPage();
           _isLoading = false;
           _error = null;
           notifyListeners();
@@ -80,38 +80,7 @@ class InventoryNotifier extends ChangeNotifier {
         });
   }
 
-  void loadMoreProducts() {
-    if (_isLoading || _isLoadingMore || !_hasMore) return;
-
-    _isLoadingMore = true;
-    notifyListeners();
-
-    final int startIndex = _currentPage * _itemsPerPage;
-    int endIndex = startIndex + _itemsPerPage;
-
-    if (endIndex > _filteredAndSortedProducts.length) {
-      endIndex = _filteredAndSortedProducts.length;
-    }
-
-    if (startIndex < _filteredAndSortedProducts.length) {
-      _displayedProducts
-          .addAll(_filteredAndSortedProducts.getRange(startIndex, endIndex));
-    }
-
-    _hasMore = _displayedProducts.length < _filteredAndSortedProducts.length;
-    _currentPage++;
-
-    _isLoadingMore = false;
-    notifyListeners();
-  }
-
-  void _applyFiltersAndSortAndPaginate({bool reset = false}) {
-    if (reset) {
-      _currentPage = 0;
-      _displayedProducts = [];
-      _hasMore = true;
-    }
-
+  void _applyFiltersAndSort() {
     List<Product> tempProducts = List.from(_allProductsFromStream);
 
     if (_selectedCategory == '_uncategorized_') {
@@ -157,26 +126,67 @@ class InventoryNotifier extends ChangeNotifier {
     }
 
     _filteredAndSortedProducts = tempProducts;
-    loadMoreProducts();
+  }
+
+  void _loadInitialPage() {
+    _currentPage = 0;
+    _displayedProducts = [];
+    _hasMore = true;
+    _loadPage();
+  }
+
+  void _loadPage() {
+    if (!_hasMore) return;
+
+    final int startIndex = _currentPage * _itemsPerPage;
+    int endIndex = startIndex + _itemsPerPage;
+
+    if (endIndex > _filteredAndSortedProducts.length) {
+      endIndex = _filteredAndSortedProducts.length;
+    }
+
+    if (startIndex < _filteredAndSortedProducts.length) {
+      _displayedProducts
+          .addAll(_filteredAndSortedProducts.getRange(startIndex, endIndex));
+    }
+
+    _hasMore = _displayedProducts.length < _filteredAndSortedProducts.length;
+    _currentPage++;
+  }
+
+  void loadMoreProducts() {
+    if (_isLoading || _isLoadingMore || !_hasMore) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    // Use Future.delayed to allow the UI to build the loading indicator
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _loadPage();
+      _isLoadingMore = false;
+      notifyListeners();
+    });
+  }
+
+  void _refreshList() {
+    _applyFiltersAndSort();
+    _loadInitialPage();
+    notifyListeners();
   }
 
   void filterProducts({String? query}) {
     _currentSearchQuery = query ?? '';
-    _applyFiltersAndSortAndPaginate(reset: true);
+    _refreshList();
   }
 
   void selectCategory(String? category) {
-    // FIXED: Removed the condition that prevented re-selecting a category.
-    // This allows clicking "All" to work every time, and re-clicking a
-    // category will refresh the filter.
     _selectedCategory = category;
-    _applyFiltersAndSortAndPaginate(reset: true);
-    notifyListeners();
+    _refreshList();
   }
 
   void sortProducts(SortOption option) {
     _currentSortOption = option;
-    _applyFiltersAndSortAndPaginate(reset: true);
+    _refreshList();
   }
 
   Future<void> addProduct(Product product, File? imageFile) async {
@@ -187,19 +197,31 @@ class InventoryNotifier extends ChangeNotifier {
     await _addOrUpdateProduct(product, imageFile, isEditing: true);
   }
 
-  Future<void> _addOrUpdateProduct(Product product, File? imageFile, {bool isEditing = false}) async {
+  Future<void> _addOrUpdateProduct(Product product, File? imageFile,
+      {bool isEditing = false}) async {
     if (!_firestoreService.isReady) throw Exception("Service not ready.");
 
     Product productWithImage = product;
 
     if (imageFile != null) {
-      final imagePath = await _githubService.uploadImage(imageFile, product.sku);
+      final imagePath =
+      await _githubService.uploadImage(imageFile, product.sku);
       productWithImage = Product(
-        id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
-        alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
-        costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, notes: product.notes,
-        imagePath: imagePath, categories: product.categories, oemPartNumber: product.oemPartNumber,
-        compatiblePartNumber: product.compatiblePartNumber, supplierId: product.supplierId,
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.quantity,
+        alertLevel: product.alertLevel,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceIqd: product.sellPriceIqd,
+        costPriceUsd: product.costPriceUsd,
+        sellPriceUsd: product.sellPriceUsd,
+        notes: product.notes,
+        imagePath: imagePath,
+        categories: product.categories,
+        oemPartNumber: product.oemPartNumber,
+        compatiblePartNumber: product.compatiblePartNumber,
+        supplierId: product.supplierId,
       );
     }
 
@@ -208,8 +230,11 @@ class InventoryNotifier extends ChangeNotifier {
     if (!isEditing) {
       await _firestoreService.addActivityLog(ActivityLog(
         id: 'log_${DateTime.now().millisecondsSinceEpoch}',
-        timestamp: DateTime.now().toIso8601String(), user: 'المستخدم',
-        action: 'ITEM_CREATED', targetId: productWithImage.id, targetName: productWithImage.name,
+        timestamp: DateTime.now().toIso8601String(),
+        user: 'المستخدم',
+        action: 'ITEM_CREATED',
+        targetId: productWithImage.id,
+        targetName: productWithImage.name,
         details: {},
       ));
     }
@@ -225,79 +250,129 @@ class InventoryNotifier extends ChangeNotifier {
     final product = _allProductsFromStream.firstWhere((p) => p.id == productId);
 
     final updatedProduct = Product(
-      id: product.id, name: product.name, sku: product.sku,
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
       quantity: newQuantity,
-      alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd,
-      sellPriceIqd: product.sellPriceIqd, costPriceUsd: product.costPriceUsd,
-      sellPriceUsd: product.sellPriceUsd, imagePath: product.imagePath,
-      categories: product.categories, oemPartNumber: product.oemPartNumber,
-      compatiblePartNumber: product.compatiblePartNumber, notes: product.notes,
+      alertLevel: product.alertLevel,
+      costPriceIqd: product.costPriceIqd,
+      sellPriceIqd: product.sellPriceIqd,
+      costPriceUsd: product.costPriceUsd,
+      sellPriceUsd: product.sellPriceUsd,
+      imagePath: product.imagePath,
+      categories: product.categories,
+      oemPartNumber: product.oemPartNumber,
+      compatiblePartNumber: product.compatiblePartNumber,
+      notes: product.notes,
       supplierId: product.supplierId,
     );
-
     await _firestoreService.setProduct(updatedProduct);
 
     await _firestoreService.addActivityLog(ActivityLog(
       id: 'log_${DateTime.now().millisecondsSinceEpoch}',
-      timestamp: DateTime.now().toIso8601String(), user: 'المستخدم',
-      action: 'QUANTITY_UPDATED', targetId: updatedProduct.id, targetName: updatedProduct.name,
-      details: { 'from': product.quantity, 'to': updatedProduct.quantity, 'reason': reason.isEmpty ? 'تعديل سريع' : reason },
+      timestamp: DateTime.now().toIso8601String(),
+      user: 'المستخدم',
+      action: 'QUANTITY_UPDATED',
+      targetId: updatedProduct.id,
+      targetName: updatedProduct.name,
+      details: {
+        'from': product.quantity,
+        'to': updatedProduct.quantity,
+        'reason': reason.isEmpty ? 'تعديل سريع' : reason
+      },
     ));
   }
 
   Future<void> recordSale({
-    required Product product, required int quantity, required double price,
-    required String currency, required DateTime saleDate, required String notes,
+    required Product product,
+    required int quantity,
+    required double price,
+    required String currency,
+    required DateTime saleDate,
+    required String notes,
     required double exchangeRate,
   }) async {
     if (!_firestoreService.isReady) return;
 
     final isIqd = currency == 'IQD';
     final sale = Sale(
-      saleId: 'sale_${DateTime.now().millisecondsSinceEpoch}', itemId: product.id, itemName: product.name,
-      quantitySold: quantity, sellPriceIqd: isIqd ? price : (price * exchangeRate), costPriceIqd: product.costPriceIqd,
-      sellPriceUsd: isIqd ? (price / exchangeRate) : price, costPriceUsd: product.costPriceUsd,
-      saleDate: DateFormat('yyyy-MM-dd').format(saleDate), notes: notes, timestamp: DateTime.now().toIso8601String(),
+      saleId: 'sale_${DateTime.now().millisecondsSinceEpoch}',
+      itemId: product.id,
+      itemName: product.name,
+      quantitySold: quantity,
+      sellPriceIqd: isIqd ? price : (price * exchangeRate),
+      costPriceIqd: product.costPriceIqd,
+      sellPriceUsd: isIqd ? (price / exchangeRate) : price,
+      costPriceUsd: product.costPriceUsd,
+      saleDate: DateFormat('yyyy-MM-dd').format(saleDate),
+      notes: notes,
+      timestamp: DateTime.now().toIso8601String(),
     );
-
     final updatedProduct = Product(
-        id: product.id, name: product.name, sku: product.sku, quantity: product.quantity - quantity,
-        alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
-        costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, notes: product.notes,
-        imagePath: product.imagePath, categories: product.categories, oemPartNumber: product.oemPartNumber,
-        compatiblePartNumber: product.compatiblePartNumber, supplierId: product.supplierId);
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.quantity - quantity,
+        alertLevel: product.alertLevel,
+        costPriceIqd: product.costPriceIqd,
+        sellPriceIqd: product.sellPriceIqd,
+        costPriceUsd: product.costPriceUsd,
+        sellPriceUsd: product.sellPriceUsd,
+        notes: product.notes,
+        imagePath: product.imagePath,
+        categories: product.categories,
+        oemPartNumber: product.oemPartNumber,
+        compatiblePartNumber: product.compatiblePartNumber,
+        supplierId: product.supplierId);
 
     await _firestoreService.setProduct(updatedProduct);
     await _firestoreService.addSale(sale);
 
     await _firestoreService.addActivityLog(ActivityLog(
         id: 'log_${DateTime.now().millisecondsSinceEpoch}_sale',
-        timestamp: sale.timestamp, user: 'المستخدم', action: 'SALE_RECORDED',
-        targetId: product.id, targetName: product.name,
+        timestamp: sale.timestamp,
+        user: 'المستخدم',
+        action: 'SALE_RECORDED',
+        targetId: product.id,
+        targetName: product.name,
         details: {'quantity': quantity, 'price': price, 'currency': currency}));
 
     await _firestoreService.addActivityLog(ActivityLog(
         id: 'log_${DateTime.now().millisecondsSinceEpoch}_qty',
-        timestamp: sale.timestamp, user: 'المستخدم', action: 'QUANTITY_UPDATED',
-        targetId: product.id, targetName: product.name,
-        details: {'from': product.quantity, 'to': updatedProduct.quantity, 'reason': 'عملية بيع'}));
+        timestamp: sale.timestamp,
+        user: 'المستخدم',
+        action: 'QUANTITY_UPDATED',
+        targetId: product.id,
+        targetName: product.name,
+        details: {
+          'from': product.quantity,
+          'to': updatedProduct.quantity,
+          'reason': 'عملية بيع'
+        }));
   }
 
   Future<void> deleteProduct(String productId) async {
     if (!_firestoreService.isReady) return;
 
-    final productToDelete = _allProductsFromStream.firstWhere((p) => p.id == productId);
+    final productToDelete =
+    _allProductsFromStream.firstWhere((p) => p.id == productId);
 
     await _firestoreService.deleteProduct(productId);
 
     await _firestoreService.addActivityLog(ActivityLog(
-        action: 'ITEM_DELETED', id: 'log_${DateTime.now().millisecondsSinceEpoch}',
-        targetId: productToDelete.id, targetName: productToDelete.name,
-        timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', details: {}));
+        action: 'ITEM_DELETED',
+        id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+        targetId: productToDelete.id,
+        targetName: productToDelete.name,
+        timestamp: DateTime.now().toIso8601String(),
+        user: 'المستخدم',
+        details: {}));
 
     if (productToDelete.imagePath != null && _githubService.isConfigured) {
       _githubService.getDirectoryListing('images').then((files) {
-        final imageFile = files.firstWhere((f) => f.path == productToDelete.imagePath, orElse: () => GithubFile(path: '', sha: ''));
+        final imageFile = files.firstWhere(
+                (f) => f.path == productToDelete.imagePath,
+            orElse: () => GithubFile(path: '', sha: ''));
         if (imageFile.sha.isNotEmpty) {
           _githubService.deleteFile(imageFile.path, imageFile.sha);
         }
@@ -324,7 +399,8 @@ class InventoryNotifier extends ChangeNotifier {
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
     for (String id in _selectedItemIds) {
-      final docRef = _firestoreService.userDocRef!.collection('products').doc(id);
+      final docRef =
+      _firestoreService.userDocRef!.collection('products').doc(id);
       batch.update(docRef, {'supplierId': newSupplierId});
     }
     await batch.commit();
@@ -335,21 +411,29 @@ class InventoryNotifier extends ChangeNotifier {
     if (!_firestoreService.isReady) return;
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
-    final productsToUpdate = _allProductsFromStream.where((p) => p.categories.contains(oldName));
+    final productsToUpdate =
+    _allProductsFromStream.where((p) => p.categories.contains(oldName));
+
     for (final product in productsToUpdate) {
-      final docRef = _firestoreService.userDocRef!.collection('products').doc(product.id);
-      final newCategories = product.categories.map((c) => c == oldName ? newName : c).toList();
+      final docRef =
+      _firestoreService.userDocRef!.collection('products').doc(product.id);
+      final newCategories =
+      product.categories.map((c) => c == oldName ? newName : c).toList();
       batch.update(docRef, {'categories': newCategories});
     }
     await batch.commit();
 
     await _firestoreService.addActivityLog(ActivityLog(
-      action: 'CATEGORY_RENAMED', id: 'log_${DateTime.now().millisecondsSinceEpoch}',
-      targetId: 'categories', targetName: 'All Categories',
+      action: 'CATEGORY_RENAMED',
+      id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+      targetId: 'categories',
+      targetName: 'All Categories',
       details: {'from': oldName, 'to': newName},
-      timestamp: DateTime.now().toIso8601String(), user: 'المستخدم',
+      timestamp: DateTime.now().toIso8601String(),
+      user: 'المستخدم',
     ));
-
+    _allCategories =
+        _allCategories.map((c) => c == oldName ? newName : c).toList();
     if (_selectedCategory == oldName) {
       _selectedCategory = newName;
     }
@@ -359,8 +443,12 @@ class InventoryNotifier extends ChangeNotifier {
   Future<List<GithubFile>> findUnusedImages() async {
     if (!_githubService.isConfigured) return [];
     final repoImages = await _githubService.getDirectoryListing('images');
-    final usedImagePaths = _allProductsFromStream.map((p) => p.imagePath).where((p) => p != null).toSet();
-    final unused = repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
+    final usedImagePaths = _allProductsFromStream
+        .map((p) => p.imagePath)
+        .where((p) => p != null)
+        .toSet();
+    final unused =
+    repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
     return unused;
   }
 
@@ -395,11 +483,13 @@ class InventoryNotifier extends ChangeNotifier {
 
   void toggleSelection(String productId) {
     if (!_isSelectionModeActive) return;
+
     if (_selectedItemIds.contains(productId)) {
       _selectedItemIds.remove(productId);
     } else {
       _selectedItemIds.add(productId);
     }
+
     if (_selectedItemIds.isEmpty) {
       exitSelectionMode();
     } else {
