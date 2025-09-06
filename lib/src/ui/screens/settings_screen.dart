@@ -274,6 +274,7 @@ class _BackupRestoreCard extends StatelessWidget {
           'سيؤدي هذا إلى استبدال جميع بياناتك الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟',
       confirmText: 'نعم، استعادة',
       isDestructive: true,
+      icon: Symbols.warning,
     );
     if (confirmed != true) return;
     
