@@ -52,9 +52,7 @@ class ActivityLogScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<ActivityLogFilter>(
-                    // FIXED: Using a Key to ensure the widget rebuilds with the new initialValue when the filter changes.
                     key: ValueKey(notifier.filter),
-                    // FIXED: Using initialValue to satisfy the linter. The Key ensures reactivity.
                     initialValue: notifier.filter,
                     decoration: const InputDecoration(
                       labelText: 'فلترة حسب النشاط',
@@ -146,20 +144,24 @@ class _LogEntryCard extends StatelessWidget {
     final (icon, color, title) = _getVisualsForAction(log.action);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          child: Icon(icon, size: 20, weight: 700),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: CircleAvatar(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            child: Icon(icon, size: 20, weight: 700),
+          ),
+          title: Text(log.targetName, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('$title • ${_formatTimestamp(log.timestamp)}'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _LogDetails(details: log.details),
+            )
+          ],
         ),
-        title: Text(log.targetName, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('$title • ${_formatTimestamp(log.timestamp)}'),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: _LogDetails(details: log.details),
-          )
-        ],
       ),
     );
   }
@@ -168,10 +170,22 @@ class _LogEntryCard extends StatelessWidget {
 class _LogDetails extends StatelessWidget {
   final Map<String, dynamic> details;
   const _LogDetails({required this.details});
+
   @override
   Widget build(BuildContext context) {
     if (details.isEmpty) {
-      return const SizedBox.shrink();
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: Theme.of(context).dividerColor, width: 1))
+        ),
+        child: Center(
+          child: Text(
+            'لا توجد تفاصيل إضافية لهذا الحدث.',
+            style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+          ),
+        ),
+      );
     }
 
     return Container(
@@ -203,6 +217,15 @@ class _LogDetails extends StatelessWidget {
             case 'reason':
               keyText = 'السبب';
               break;
+            case 'sku':
+              keyText = 'SKU';
+              break;
+            case 'last_quantity':
+              keyText = 'آخر كمية مسجلة';
+              break;
+            case 'info':
+              keyText = 'معلومة';
+              break;
             default:
               keyText = entry.key;
           }
@@ -212,10 +235,18 @@ class _LogDetails extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(keyText, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
-                Text(valueText, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    valueText,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.end,
+                  ),
+                ),
               ],
             ),
           );

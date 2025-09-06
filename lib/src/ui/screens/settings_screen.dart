@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
@@ -49,6 +50,9 @@ class _GeneralSettingsCard extends StatefulWidget {
 class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
   late final TextEditingController _userController;
   late final TextEditingController _exchangeRateController;
+  String _liveExchangeRateStatus = 'جلب السعر الحالي...';
+  num? _fetchedRate;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +60,48 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
     _userController = TextEditingController(text: settings.currentUser);
     _exchangeRateController =
         TextEditingController(text: settings.exchangeRate.toString());
+    _fetchLiveExchangeRate();
+  }
+
+  Future<void> _fetchLiveExchangeRate() async {
+    if (!mounted) return;
+    setState(() {
+      _liveExchangeRateStatus = 'جاري التحميل...';
+      _fetchedRate = null;
+    });
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+          'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+      if (response.statusCode == 200) {
+        final rate = response.data['usd']['iqd'];
+        if (rate is num) {
+          if (!mounted) return;
+          setState(() {
+            _fetchedRate = rate;
+            _liveExchangeRateStatus = 'السعر الحالي: ${rate.round()}';
+          });
+          return;
+        }
+      }
+      throw Exception('Invalid data');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _liveExchangeRateStatus = 'فشل التحديث. انقر للمحاولة مرة أخرى.';
+        _fetchedRate = null;
+      });
+    }
+  }
+
+  void _applyLiveRate() {
+    if (_fetchedRate != null) {
+      _exchangeRateController.text = _fetchedRate!.round().toString();
+      showAppSnackBar(context,
+          message: 'تم تطبيق سعر الصرف الحالي', type: NotificationType.success);
+    } else {
+      _fetchLiveExchangeRate();
+    }
   }
 
   @override
@@ -68,7 +114,7 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
   void _saveSettings() {
     final settings = context.read<SettingsNotifier>();
     settings.saveGeneralConfig(
-      currentUser: _userController.text,
+      currentUser: _userController.text.trim(),
       activeCurrency: settings.activeCurrency,
       exchangeRate: double.tryParse(_exchangeRateController.text) ?? 1460.0,
     );
@@ -135,7 +181,14 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
               decoration: const InputDecoration(labelText: 'سعر صرف الدولار'),
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _applyLiveRate,
+                child: Text(_liveExchangeRateStatus),
+              ),
+            ),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _saveSettings,
               child: const Text('حفظ الإعدادات العامة'),
@@ -282,7 +335,8 @@ class _BackupRestoreCard extends StatelessWidget {
       final confirmed = await showConfirmationDialog(
         context: context,
         title: 'تنبيه: غير متصل بالإنترنت',
-        content: 'أنت غير متصل بالإنترنت حاليًا. النسخة الاحتياطية ستحتوي على آخر بيانات تمت مزامنتها عند وجود اتصال. هل تريد المتابعة على أي حال؟',
+        content:
+        'أنت غير متصل بالإنترنت حاليًا. النسخة الاحتياطية ستحتوي على آخر بيانات تمت مزامنتها عند وجود اتصال. هل تريد المتابعة على أي حال؟',
         confirmText: 'نعم، متابعة',
         icon: Symbols.wifi_off,
         isDestructive: false,
@@ -292,7 +346,9 @@ class _BackupRestoreCard extends StatelessWidget {
       }
     } else {
       proceedWithBackup = true;
-      showAppSnackBar(context, message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...', type: NotificationType.info);
+      showAppSnackBar(context,
+          message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...',
+          type: NotificationType.info);
     }
 
     if (proceedWithBackup) {
@@ -304,12 +360,15 @@ class _BackupRestoreCard extends StatelessWidget {
           activityLogs: activityLogNotifier.allLogs,
         );
         if (context.mounted && savedPath != null) {
-          showAppSnackBar(context, message: 'تم حفظ النسخة الاحتياطية في: $savedPath', type: NotificationType.success);
+          showAppSnackBar(context,
+              message: 'تم حفظ النسخة الاحتياطية في: $savedPath',
+              type: NotificationType.success);
         }
       } catch (e) {
         if (context.mounted) {
           showAppSnackBar(context,
-              message: 'فشل النسخ الاحتياطي: $e', type: NotificationType.error);
+              message: 'فشل النسخ الاحتياطي: $e',
+              type: NotificationType.error);
         }
       }
     }
@@ -333,7 +392,8 @@ class _BackupRestoreCard extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         showAppSnackBar(context,
-            message: 'فشلت عملية الاستعادة: $e', type: NotificationType.error);
+            message: 'فشلت عملية الاستعادة: $e',
+            type: NotificationType.error);
       }
     }
   }
@@ -346,7 +406,8 @@ class _BackupRestoreCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('النسخ الاحتياطي والاستعادة', style: Theme.of(context).textTheme.titleLarge),
+            Text('النسخ الاحتياطي والاستعادة',
+                style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
             Consumer<BackupService>(
               builder: (context, service, child) {
@@ -357,7 +418,8 @@ class _BackupRestoreCard extends StatelessWidget {
                       children: [
                         const LinearProgressIndicator(),
                         const SizedBox(height: 8),
-                        Text(service.statusMessage, style: Theme.of(context).textTheme.bodySmall),
+                        Text(service.statusMessage,
+                            style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                   );
@@ -369,7 +431,8 @@ class _BackupRestoreCard extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Symbols.download),
                     title: const Text('إنشاء نسخة احتياطية محلية'),
-                    subtitle: const Text('حفظ جميع البيانات والصور في ملف ZIP'),
+                    subtitle:
+                    const Text('حفظ جميع البيانات والصور في ملف ZIP'),
                     onTap: () => _handleBackup(context),
                   ),
                   ListTile(

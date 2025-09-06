@@ -67,18 +67,18 @@ class InventoryNotifier extends ChangeNotifier {
 
     _productSubscription =
         _firestoreService.getProductsStream().listen((products) {
-      _allProductsFromStream = products;
-      _extractCategories();
-      _applyFiltersAndSort();
-      _loadInitialPage();
-      _isLoading = false;
-      _error = null;
-      notifyListeners();
-    }, onError: (e) {
-      _error = "فشل تحميل المنتجات: $e";
-      _isLoading = false;
-      notifyListeners();
-    });
+          _allProductsFromStream = products;
+          _extractCategories();
+          _applyFiltersAndSort();
+          _loadInitialPage();
+          _isLoading = false;
+          _error = null;
+          notifyListeners();
+        }, onError: (e) {
+          _error = "فشل تحميل المنتجات: $e";
+          _isLoading = false;
+          notifyListeners();
+        });
   }
 
   void _applyFiltersAndSort() {
@@ -213,7 +213,7 @@ class InventoryNotifier extends ChangeNotifier {
       changes.add(_firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_price', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'PRICE_UPDATED', targetId: newProduct.id, targetName: newProduct.name, details: {'from': '${oldProduct.sellPriceIqd} IQD', 'to': '${newProduct.sellPriceIqd} IQD'})));
     }
     if (oldProduct.notes != newProduct.notes) {
-      changes.add(_firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_notes', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'NOTES_UPDATED', targetId: newProduct.id, targetName: newProduct.name, details: {})));
+      changes.add(_firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_notes', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'NOTES_UPDATED', targetId: newProduct.id, targetName: newProduct.name, details: {'info' : 'تم تغيير الملاحظات'})));
     }
     if (oldProduct.supplierId != newProduct.supplierId) {
       changes.add(_firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_supplier', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'SUPPLIER_UPDATED', targetId: newProduct.id, targetName: newProduct.name, details: {'from': oldProduct.supplierId ?? 'N/A', 'to': newProduct.supplierId ?? 'N/A'})));
@@ -238,7 +238,7 @@ class InventoryNotifier extends ChangeNotifier {
         compatiblePartNumber: product.compatiblePartNumber, supplierId: product.supplierId,
       );
       if(isEditing){
-         await _firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_image', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'IMAGE_UPDATED', targetId: productWithImage.id, targetName: productWithImage.name, details: {}));
+        await _firestoreService.addActivityLog(ActivityLog(id: 'log_${DateTime.now().millisecondsSinceEpoch}_image', timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', action: 'IMAGE_UPDATED', targetId: productWithImage.id, targetName: productWithImage.name, details: {'info' : 'تم تحديث الصورة'}));
       }
     }
 
@@ -251,7 +251,7 @@ class InventoryNotifier extends ChangeNotifier {
         id: 'log_${DateTime.now().millisecondsSinceEpoch}',
         timestamp: DateTime.now().toIso8601String(), user: 'المستخدم',
         action: 'ITEM_CREATED', targetId: productWithImage.id, targetName: productWithImage.name,
-        details: {},
+        details: {'sku': product.sku, 'quantity': product.quantity},
       ));
     }
   }
@@ -332,7 +332,7 @@ class InventoryNotifier extends ChangeNotifier {
     await _firestoreService.addActivityLog(ActivityLog(
         action: 'ITEM_DELETED', id: 'log_${DateTime.now().millisecondsSinceEpoch}',
         targetId: productToDelete.id, targetName: productToDelete.name,
-        timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', details: {}));
+        timestamp: DateTime.now().toIso8601String(), user: 'المستخدم', details: {'sku': productToDelete.sku, 'last_quantity': productToDelete.quantity}));
 
     if (productToDelete.imagePath != null && _githubService.isConfigured) {
       _githubService.getDirectoryListing('images').then((files) {
