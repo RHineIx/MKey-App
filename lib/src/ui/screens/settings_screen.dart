@@ -1,6 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
@@ -256,6 +257,20 @@ class _BackupRestoreCard extends StatelessWidget {
     final dashboardNotifier = context.read<DashboardNotifier>();
     final supplierNotifier = context.read<SupplierNotifier>();
     final activityLogNotifier = context.read<ActivityLogNotifier>();
+
+    // Check if any of the notifiers are still loading data initially.
+    if (inventoryNotifier.isLoading ||
+        dashboardNotifier.isLoading ||
+        supplierNotifier.isLoading ||
+        activityLogNotifier.isLoading) {
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message:
+                'البيانات لا تزال قيد التحميل. يرجى الانتظار لحظات ثم المحاولة مرة أخرى.',
+            type: NotificationType.error);
+      }
+      return;
+    }
 
     final connectivityResult = await Connectivity().checkConnectivity();
     final isOffline = connectivityResult.contains(ConnectivityResult.none);

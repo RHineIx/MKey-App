@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
-import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
-import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
@@ -45,7 +43,6 @@ class SuppliersScreen extends StatelessWidget {
 
   void _deleteSupplier(BuildContext context, Supplier supplier) async {
     final supplierNotifier = context.read<SupplierNotifier>();
-    final inventoryNotifier = context.read<InventoryNotifier>();
 
     final confirmed = await showConfirmationDialog(
         context: context,
@@ -58,26 +55,7 @@ class SuppliersScreen extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
 
     try {
-      // Unlink products from the supplier before deleting the supplier
-      final linkedProducts = inventoryNotifier.displayedProducts.where((p) => p.supplierId == supplier.id).toList();
-      for (final product in linkedProducts) {
-        final updatedProduct = Product(
-          id: product.id, name: product.name, sku: product.sku, quantity: product.quantity,
-          alertLevel: product.alertLevel, costPriceIqd: product.costPriceIqd, sellPriceIqd: product.sellPriceIqd,
-          costPriceUsd: product.costPriceUsd, sellPriceUsd: product.sellPriceUsd, notes: product.notes,
-          imagePath: product.imagePath, categories: product.categories, oemPartNumber: product.oemPartNumber,
-          compatiblePartNumber: product.compatiblePartNumber, supplierId: null, // This is the change
-        );
-        await inventoryNotifier.updateProduct(updatedProduct, null);
-      }
-
-      // Now, delete the supplier
-      await supplierNotifier.deleteSupplier(supplier.id);
-
-      if (context.mounted) {
-        showAppSnackBar(context,
-            message: 'تم الحذف بنجاح', type: NotificationType.success);
-      }
+      await supplierNotifier.deleteSupplier(context, supplier.id);
     } catch (e) {
       if (context.mounted) {
         showAppSnackBar(context,
