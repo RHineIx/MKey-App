@@ -25,8 +25,19 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build release APK with secrets
+        # This step uses secrets to pass your configuration to the Flutter app.
+        # You MUST create these secrets in your repository settings for this to work.
+        # Go to: Settings > Secrets and variables > Actions > New repository secret
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_USERNAME: ${{ secrets.GH_USERNAME }}
+          GITHUB_REPO: ${{ secrets.GH_REPO }}
+        run: |
+          flutter build apk --release \
+            --dart-define=GITHUB_TOKEN=$GITHUB_TOKEN \
+            --dart-define=GITHUB_USERNAME=$GITHUB_USERNAME \
+            --dart-define=GITHUB_REPO=$GITHUB_REPO
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
