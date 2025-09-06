@@ -1,7 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
@@ -251,24 +250,7 @@ class _DataManagementCard extends StatelessWidget {
 class _BackupRestoreCard extends StatelessWidget {
   const _BackupRestoreCard();
 
-  Future<bool> _requestPermission(BuildContext context) async {
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-    }
-    if (!status.isGranted) {
-      if(context.mounted) {
-        showAppSnackBar(context, message: 'صلاحية الوصول للتخزين مطلوبة لحفظ الملف.', type: NotificationType.error);
-      }
-      return false;
-    }
-    return true;
-  }
-
-
   Future<void> _handleBackup(BuildContext context) async {
-    if (!await _requestPermission(context)) return;
-
     final backupService = context.read<BackupService>();
     final inventoryNotifier = context.read<InventoryNotifier>();
     final dashboardNotifier = context.read<DashboardNotifier>();
