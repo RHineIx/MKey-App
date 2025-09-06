@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -30,7 +29,7 @@ class BackupService extends ChangeNotifier {
   })  : _firestoreService = firestoreService,
         _githubService = githubService,
         _cacheManager = cacheManager;
-  
+
   void updateServices({
     required FirestoreService firestoreService,
     required GithubService githubService,
@@ -68,7 +67,7 @@ class BackupService extends ChangeNotifier {
           utf8.encode(jsonEncode(activityLogs.map((l) => l.toMap()).toList()))));
 
       final imagePaths =
-          products.map((p) => p.imagePath).whereType<String>().toSet();
+      products.map((p) => p.imagePath).whereType<String>().toSet();
 
       int imageCount = 0;
       for (final imagePath in imagePaths) {
@@ -103,18 +102,18 @@ class BackupService extends ChangeNotifier {
         _updateStatus('تم إلغاء الحفظ.', working: false);
         return null;
       }
-      
+
       _updateStatus('جاري حفظ الملف...');
       final fileName = 'mkey_backup_${DateTime.now().toIso8601String().split('T').first}.zip';
       final file = File('$selectedPath/$fileName');
       await file.writeAsBytes(zipData);
-      
+
       return file.path;
 
     } finally {
-       if (_isWorking) {
-         _updateStatus('', working: false);
-       }
+      if (_isWorking) {
+        _updateStatus('', working: false);
+      }
     }
   }
 
@@ -172,10 +171,10 @@ class BackupService extends ChangeNotifier {
       int imageCount = 0;
       for (final imageFile in imageFiles) {
         imageCount++;
-         _updateStatus('جاري رفع الصور ($imageCount/${imageFiles.length})...');
+        _updateStatus('جاري رفع الصور ($imageCount/${imageFiles.length})...');
         await _githubService.uploadRestoredImage(imageFile.name, imageFile.content);
       }
-      
+
       _updateStatus('جاري استعادة البيانات إلى Firestore...');
       await _firestoreService.performRestore(
         products: products,
@@ -188,7 +187,7 @@ class BackupService extends ChangeNotifier {
 
     } finally {
       if (_isWorking) {
-         _updateStatus('انتهت العملية.', working: false);
+        _updateStatus('انتهت العملية.', working: false);
       }
     }
   }

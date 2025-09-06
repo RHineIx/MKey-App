@@ -1,7 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
@@ -128,7 +127,7 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
             TextFormField(
               controller: _userController,
               decoration:
-                  const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
+              const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -154,7 +153,7 @@ class _DataManagementCard extends StatelessWidget {
   void _handleImageCleanup(BuildContext context) async {
     final inventoryNotifier = context.read<InventoryNotifier>();
     final List<GithubFile> unusedImages =
-        await inventoryNotifier.findUnusedImages();
+    await inventoryNotifier.findUnusedImages();
 
     if (!context.mounted) return;
     if (unusedImages.isEmpty) {
@@ -168,7 +167,7 @@ class _DataManagementCard extends StatelessWidget {
       context: context,
       title: 'تأكيد الحذف',
       content:
-          'تم العثور على ${unusedImages.length} صورة غير مستخدمة. هل تريد حذفها نهائياً من المستودع؟',
+      'تم العثور على ${unusedImages.length} صورة غير مستخدمة. هل تريد حذفها نهائياً من المستودع؟',
       confirmText: 'نعم، حذف ${unusedImages.length} صورة',
       icon: Symbols.delete_forever,
       isDestructive: true,
@@ -177,7 +176,7 @@ class _DataManagementCard extends StatelessWidget {
 
     try {
       final deletedCount =
-          await inventoryNotifier.deleteUnusedImages(unusedImages);
+      await inventoryNotifier.deleteUnusedImages(unusedImages);
       if (!context.mounted) return;
       showAppSnackBar(context,
           message: 'اكتمل التنظيف. تم حذف $deletedCount صورة بنجاح.',
@@ -194,12 +193,13 @@ class _DataManagementCard extends StatelessWidget {
       context: context,
       title: 'تأكيد حذف الصور المؤقتة',
       content:
-          'سيتم حذف جميع الصور المحفوظة على هذا الجهاز. سيتم إعادة تحميلها عند الحاجة. هل أنت متأكد؟',
+      'سيتم حذف جميع الصور المحفوظة على هذا الجهاز. سيتم إعادة تحميلها عند الحاجة. هل أنت متأكد؟',
       confirmText: 'نعم, حذف',
       icon: Symbols.delete,
       isDestructive: true,
     );
     if (confirmed != true || !context.mounted) return;
+
     try {
       showAppSnackBar(context,
           message: 'جاري حذف الصور...', type: NotificationType.syncing);
@@ -231,14 +231,14 @@ class _DataManagementCard extends StatelessWidget {
               leading: const Icon(Icons.cleaning_services_outlined),
               title: const Text('تنظيف الصور غير المستخدمة'),
               subtitle:
-                  const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
+              const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
               onTap: () => _handleImageCleanup(context),
             ),
             ListTile(
               leading: const Icon(Symbols.cached),
               title: const Text('تنظيف ذاكرة التخزين المؤقت للصور'),
               subtitle:
-                  const Text('حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
+              const Text('حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
               onTap: () => _handleImageCacheClear(context),
             ),
           ],
@@ -252,13 +252,12 @@ class _BackupRestoreCard extends StatelessWidget {
   const _BackupRestoreCard();
 
   Future<void> _handleBackup(BuildContext context) async {
-    final backupService = context.read<BackupService>();
     final inventoryNotifier = context.read<InventoryNotifier>();
     final dashboardNotifier = context.read<DashboardNotifier>();
     final supplierNotifier = context.read<SupplierNotifier>();
     final activityLogNotifier = context.read<ActivityLogNotifier>();
+    final backupService = context.read<BackupService>();
 
-    // Check if any of the notifiers are still loading data initially.
     if (inventoryNotifier.isLoading ||
         dashboardNotifier.isLoading ||
         supplierNotifier.isLoading ||
@@ -266,19 +265,20 @@ class _BackupRestoreCard extends StatelessWidget {
       if (context.mounted) {
         showAppSnackBar(context,
             message:
-                'البيانات لا تزال قيد التحميل. يرجى الانتظار لحظات ثم المحاولة مرة أخرى.',
+            'البيانات لا تزال قيد التحميل. يرجى الانتظار لحظات ثم المحاولة مرة أخرى.',
             type: NotificationType.error);
       }
       return;
     }
 
     final connectivityResult = await Connectivity().checkConnectivity();
+    if (!context.mounted) return;
+
     final isOffline = connectivityResult.contains(ConnectivityResult.none);
-    
+
     bool proceedWithBackup = false;
 
     if (isOffline) {
-      if (!context.mounted) return;
       final confirmed = await showConfirmationDialog(
         context: context,
         title: 'تنبيه: غير متصل بالإنترنت',
@@ -292,9 +292,7 @@ class _BackupRestoreCard extends StatelessWidget {
       }
     } else {
       proceedWithBackup = true;
-      if (context.mounted) {
-        showAppSnackBar(context, message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...', type: NotificationType.info);
-      }
+      showAppSnackBar(context, message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...', type: NotificationType.info);
     }
 
     if (proceedWithBackup) {
@@ -318,18 +316,18 @@ class _BackupRestoreCard extends StatelessWidget {
   }
 
   Future<void> _handleRestore(BuildContext context) async {
+    final backupService = context.read<BackupService>();
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'تأكيد الاستعادة',
       content:
-          'سيؤدي هذا إلى استبدال جميع بياناتك الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟',
+      'سيؤدي هذا إلى استبدال جميع بياناتك الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟',
       confirmText: 'نعم، استعادة',
       isDestructive: true,
       icon: Symbols.warning,
     );
-    if (confirmed != true) return;
-    
-    final backupService = context.read<BackupService>();
+    if (confirmed != true || !context.mounted) return;
+
     try {
       await backupService.restoreFromBackup();
     } catch (e) {
@@ -394,6 +392,7 @@ class _AccountCard extends StatelessWidget {
   const _AccountCard();
 
   void _signOut(BuildContext context) async {
+    final authService = context.read<AuthService>();
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'تسجيل الخروج',
@@ -403,7 +402,7 @@ class _AccountCard extends StatelessWidget {
       isDestructive: true,
     );
     if (confirmed == true && context.mounted) {
-      await context.read<AuthService>().signOut();
+      await authService.signOut();
     }
   }
 

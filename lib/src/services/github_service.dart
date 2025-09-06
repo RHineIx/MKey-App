@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:rhineix_mkey_app/src/core/app_config.dart';
@@ -25,10 +24,10 @@ class GithubService extends ChangeNotifier {
 
   bool get isConfigured => _isConfigured;
   Map<String, String> get authHeaders => {
-        'Authorization': 'Bearer $_token',
-        'Accept': 'application/vnd.github.v3+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      };
+    'Authorization': 'Bearer $_token',
+    'Accept': 'application/vnd.github.v3+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
 
   String getImageUrl(String imagePath) {
     if (!isConfigured) return '';
@@ -59,7 +58,7 @@ class GithubService extends ChangeNotifier {
 
     try {
       final existingFileResponse =
-          await _dio.get(url, options: Options(headers: authHeaders));
+      await _dio.get(url, options: Options(headers: authHeaders));
       if (existingFileResponse.statusCode == 200) {
         body['sha'] = existingFileResponse.data['sha'];
       }
@@ -70,7 +69,7 @@ class GithubService extends ChangeNotifier {
     }
 
     final response =
-        await _dio.put(url, data: body, options: Options(headers: authHeaders));
+    await _dio.put(url, data: body, options: Options(headers: authHeaders));
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       return response.data['content']['path'];
@@ -86,7 +85,7 @@ class GithubService extends ChangeNotifier {
 
     try {
       final response =
-          await _dio.get(url, options: Options(headers: authHeaders));
+      await _dio.get(url, options: Options(headers: authHeaders));
       if (response.statusCode == 200 && response.data is List) {
         return (response.data as List)
             .map((item) => GithubFile.fromJson(item))
@@ -121,10 +120,10 @@ class GithubService extends ChangeNotifier {
     final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
     try {
       final response =
-          await _dio.get(url, options: Options(headers: authHeaders));
+      await _dio.get(url, options: Options(headers: authHeaders));
       if (response.statusCode == 200) {
         final String decodedContent =
-            utf8.decode(base64.decode(response.data['content'].replaceAll('\n', '')));
+        utf8.decode(base64.decode(response.data['content'].replaceAll('\n', '')));
         final data = json.decode(decodedContent);
         if (data is List) {
           return data.map((item) => Sale.fromJson(item)).toList();
