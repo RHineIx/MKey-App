@@ -98,7 +98,6 @@ class BackupService extends ChangeNotifier {
       );
 
       if (selectedPath == null) {
-        // User canceled the picker
         _updateStatus('تم إلغاء الحفظ.', working: false);
         return null;
       }
@@ -172,7 +171,7 @@ class BackupService extends ChangeNotifier {
       for (final imageFile in imageFiles) {
         imageCount++;
         _updateStatus('جاري رفع الصور ($imageCount/${imageFiles.length})...');
-        await _githubService.uploadRestoredImage(imageFile.name, imageFile.content);
+        await _githubService.uploadFile(imageFile.name, imageFile.content, 'Restore image');
       }
 
       _updateStatus('جاري استعادة البيانات إلى Firestore...');

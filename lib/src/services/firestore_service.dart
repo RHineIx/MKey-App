@@ -88,6 +88,16 @@ class FirestoreService extends ChangeNotifier {
     await userDocRef!.collection('sales').doc(saleId).delete();
   }
 
+  Future<void> deleteSalesBatch(List<Sale> sales) async {
+    if (!isReady) throw Exception("User not authenticated.");
+    WriteBatch batch = _firestore!.batch();
+    for (final sale in sales) {
+      final docRef = userDocRef!.collection('sales').doc(sale.saleId);
+      batch.delete(docRef);
+    }
+    await batch.commit();
+  }
+
   // ACTIVITY LOG
   Stream<List<ActivityLog>> getActivityLogsStream() {
     if (!isReady) return Stream.value([]);
@@ -126,14 +136,13 @@ class FirestoreService extends ChangeNotifier {
     final collection = userDocRef!.collection(collectionPath);
     final snapshot = await collection.limit(500).get();
     if (snapshot.docs.isEmpty) return;
-    
+
     WriteBatch batch = _firestore!.batch();
     for (var doc in snapshot.docs) {
       batch.delete(doc.reference);
     }
     await batch.commit();
 
-    // Recursively delete if there are more documents
     if (snapshot.docs.length == 500) {
       await _clearCollection(collectionPath);
     }
@@ -151,7 +160,7 @@ class FirestoreService extends ChangeNotifier {
     await _clearCollection('sales');
     await _clearCollection('suppliers');
     await _clearCollection('activity_logs');
-    
+
     WriteBatch batch = _firestore!.batch();
     int count = 0;
 
@@ -175,7 +184,7 @@ class FirestoreService extends ChangeNotifier {
       batch.set(docRef, log.toMap());
       if (++count % 500 == 0) { await batch.commit(); batch = _firestore!.batch(); }
     }
-    
+
     await batch.commit();
   }
 }

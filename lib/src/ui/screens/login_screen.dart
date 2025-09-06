@@ -17,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _usernameOrEmailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
+    _usernameOrEmailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -59,8 +59,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final settingsNotifier = context.read<SettingsNotifier>();
     final configService = context.read<ConfigService>();
 
-    final result = await authService.signInWithEmailPassword(
-      _emailController.text.trim(),
+    final result = await authService.signInWithUsernameOrEmail(
+      _usernameOrEmailController.text.trim(),
       _passwordController.text.trim(),
     );
 
@@ -120,14 +120,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
                 TextFormField(
-                  controller: _emailController,
+                  controller: _usernameOrEmailController,
                   decoration: const InputDecoration(
-                    labelText: 'البريد الإلكتروني',
-                    prefixIcon: Icon(Symbols.email),
+                    labelText: 'اسم المستخدم أو البريد الإلكتروني',
+                    prefixIcon: Icon(Symbols.alternate_email),
                   ),
-                  keyboardType: TextInputType.emailAddress,
+                  keyboardType: TextInputType.text,
+                  autocorrect: false,
                   validator: (value) => (value?.isEmpty ?? true)
-                      ? 'الرجاء إدخال البريد الإلكتروني'
+                      ? 'هذا الحقل مطلوب'
                       : null,
                 ),
                 const SizedBox(height: 16),

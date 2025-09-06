@@ -13,6 +13,8 @@ import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/auth_service.dart';
 import 'package:rhineix_mkey_app/src/services/backup_service.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
+import 'package:rhineix_mkey_app/src/ui/screens/archive_browser_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 
@@ -203,6 +205,35 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
 class _DataManagementCard extends StatelessWidget {
   const _DataManagementCard();
 
+  Future<void> _handleArchiveSales(BuildContext context) async {
+    final dashboardNotifier = context.read<DashboardNotifier>();
+    final githubService = context.read<GithubService>();
+
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: "تأكيد الأرشفة",
+      content: "سيتم أرشفة جميع المبيعات التي يزيد عمرها عن 90 يومًا. لا يمكن التراجع عن هذا الإجراء بسهولة. هل أنت متأكد؟",
+      confirmText: "نعم, أرشفة",
+      icon: Symbols.archive,
+      isDestructive: false,
+    );
+    if(confirmed != true || !context.mounted) return;
+
+    try {
+      showAppSnackBar(context, message: "جاري أرشفة المبيعات القديمة...", type: NotificationType.syncing);
+      final count = await dashboardNotifier.archiveOldSales(githubService);
+      if(!context.mounted) return;
+      if (count > 0) {
+        showAppSnackBar(context, message: "تمت أرشفة $count سجل مبيعات بنجاح!", type: NotificationType.success);
+      } else {
+        showAppSnackBar(context, message: "لا توجد مبيعات قديمة للأرشفة.", type: NotificationType.info);
+      }
+    } catch (e) {
+      if(!context.mounted) return;
+      showAppSnackBar(context, message: "فشلت عملية الأرشفة: $e", type: NotificationType.error);
+    }
+  }
+
   void _handleImageCleanup(BuildContext context) async {
     final inventoryNotifier = context.read<InventoryNotifier>();
     final List<GithubFile> unusedImages =
@@ -280,6 +311,22 @@ class _DataManagementCard extends StatelessWidget {
           children: [
             Text('إدارة البيانات', style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
+            ListTile(
+              leading: const Icon(Symbols.archive),
+              title: const Text('أرشفة المبيعات القديمة'),
+              subtitle: const Text('نقل المبيعات الأقدم من 90 يومًا إلى GitHub'),
+              onTap: () => _handleArchiveSales(context),
+            ),
+            ListTile(
+              leading: const Icon(Symbols.history_edu),
+              title: const Text('تصفح أرشيف المبيعات'),
+              subtitle: const Text('عرض المبيعات المؤرشفة من GitHub'),
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const ArchiveBrowserScreen(),
+                ));
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.cleaning_services_outlined),
               title: const Text('تنظيف الصور غير المستخدمة'),

@@ -1,9 +1,12 @@
-import 'dart:async'; // FIXED: Missing import
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/models/sale_model.dart';
 import 'package:rhineix_mkey_app/src/services/firestore_service.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class Bestseller {
   final String name;
@@ -14,7 +17,7 @@ class Bestseller {
 class DashboardNotifier extends ChangeNotifier {
   FirestoreService _firestoreService;
   StreamSubscription? _salesSubscription;
-  StreamSubscription? _productsSubscription; 
+  StreamSubscription? _productsSubscription;
 
   DashboardNotifier(this._firestoreService) {
     _listenToData();
@@ -118,6 +121,32 @@ class DashboardNotifier extends ChangeNotifier {
 
     await _firestoreService.setProduct(updatedProduct);
     await _firestoreService.deleteSale(saleId);
+  }
+
+  Future<int> archiveOldSales(GithubService githubService) async {
+    if (!_firestoreService.isReady || !githubService.isConfigured) {
+      throw Exception('Services not ready for archiving.');
+    }
+
+    final threeMonthsAgo = DateTime.now().subtract(const Duration(days: 90));
+    final salesToArchive = _allSales.where((sale) {
+      final saleDate = DateTime.tryParse(sale.saleDate);
+      return saleDate != null && saleDate.isBefore(threeMonthsAgo);
+    }).toList();
+
+    if (salesToArchive.isEmpty) {
+      return 0;
+    }
+
+    final archiveFileName = 'archive/sales_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.json';
+    final jsonString = jsonEncode(salesToArchive.map((s) => s.toMap()).toList());
+    final fileContent = Uint8List.fromList(utf8.encode(jsonString));
+
+    await githubService.uploadFile(archiveFileName, fileContent, 'Archive sales data');
+
+    await _firestoreService.deleteSalesBatch(salesToArchive);
+
+    return salesToArchive.length;
   }
 
   void setPeriod(DashboardPeriod newPeriod) {
