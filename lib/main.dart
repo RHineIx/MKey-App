@@ -11,6 +11,7 @@ import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/auth_service.dart';
+import 'package:rhineix_mkey_app/src/services/backup_service.dart';
 import 'package:rhineix_mkey_app/src/services/config_service.dart';
 import 'package:rhineix_mkey_app/src/services/fcm_service.dart';
 import 'package:rhineix_mkey_app/src/services/firestore_service.dart';
@@ -25,7 +26,6 @@ void main() async {
 
   final fcmService = FCMService();
   await fcmService.initNotifications();
-
   final customCacheManager = await CustomCacheManager.getInstance();
 
   runApp(
@@ -34,37 +34,54 @@ void main() async {
         Provider<CacheManager>.value(value: customCacheManager),
         Provider(create: (_) => ConfigService()),
         Provider.value(value: fcmService),
-
-        ChangeNotifierProvider(create: (_) => AuthService()), // FIXED: Simplified provider
+        ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => GithubService()),
-
         ChangeNotifierProxyProvider<AuthService, FirestoreService>(
           create: (context) => FirestoreService(null),
           update: (_, auth, __) => FirestoreService(auth.currentUser?.uid),
         ),
-
         ChangeNotifierProvider(
           create: (context) => SettingsNotifier(context.read<ConfigService>()),
         ),
-
+        ChangeNotifierProxyProvider3<FirestoreService, GithubService,
+            CacheManager, BackupService>(
+          create: (context) => BackupService(
+            firestoreService: context.read<FirestoreService>(),
+            githubService: context.read<GithubService>(),
+            cacheManager: context.read<CacheManager>(),
+          ),
+          update: (_, firestore, github, cache, notifier) => notifier!
+            ..updateServices(
+              firestoreService: firestore,
+              githubService: github,
+              cacheManager: cache,
+            ),
+        ),
         ChangeNotifierProxyProvider<FirestoreService, InventoryNotifier>(
           create: (context) => InventoryNotifier(
             context.read<FirestoreService>(),
             context.read<GithubService>(),
           ),
-          update: (_, firestore, notifier) => notifier!..updateFirestoreService(firestore),
+          update: (_, firestore, notifier) =>
+          notifier!..updateFirestoreService(firestore),
         ),
         ChangeNotifierProxyProvider<FirestoreService, SupplierNotifier>(
-          create: (context) => SupplierNotifier(context.read<FirestoreService>()),
-          update: (_, firestore, notifier) => notifier!..updateFirestoreService(firestore),
+          create: (context) =>
+              SupplierNotifier(context.read<FirestoreService>()),
+          update: (_, firestore, notifier) =>
+          notifier!..updateFirestoreService(firestore),
         ),
         ChangeNotifierProxyProvider<FirestoreService, ActivityLogNotifier>(
-          create: (context) => ActivityLogNotifier(context.read<FirestoreService>()),
-          update: (_, firestore, notifier) => notifier!..updateFirestoreService(firestore),
+          create: (context) =>
+              ActivityLogNotifier(context.read<FirestoreService>()),
+          update: (_, firestore, notifier) =>
+          notifier!..updateFirestoreService(firestore),
         ),
         ChangeNotifierProxyProvider<FirestoreService, DashboardNotifier>(
-          create: (context) => DashboardNotifier(context.read<FirestoreService>()),
-          update: (_, firestore, notifier) => notifier!..updateFirestoreService(firestore),
+          create: (context) =>
+              DashboardNotifier(context.read<FirestoreService>()),
+          update: (_, firestore, notifier) =>
+          notifier!..updateFirestoreService(firestore),
         ),
       ],
       child: const MKeyApp(),
@@ -78,18 +95,21 @@ class MKeyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settingsNotifier = context.watch<SettingsNotifier>();
-
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         final appMode = settingsNotifier.appThemeMode;
+        ColorScheme lightColorScheme;
+        ColorScheme darkColorScheme;
 
-        final ColorScheme lightColorScheme = (appMode == AppThemeMode.system && lightDynamic != null)
-            ? lightDynamic
-            : AppTheme.lightColorScheme;
-
-        final ColorScheme darkColorScheme = (appMode == AppThemeMode.system && darkDynamic != null)
-            ? darkDynamic
-            : AppTheme.darkColorScheme;
+        if (appMode == AppThemeMode.system && lightDynamic != null && darkDynamic != null) {
+          // Use the dynamic color seed to generate a new, harmonized color scheme.
+          lightColorScheme = ColorScheme.fromSeed(seedColor: lightDynamic.primary);
+          darkColorScheme = ColorScheme.fromSeed(seedColor: darkDynamic.primary, brightness: Brightness.dark);
+        } else {
+          // Fallback to the predefined static theme.
+          lightColorScheme = AppTheme.lightColorScheme;
+          darkColorScheme = AppTheme.darkColorScheme;
+        }
 
         final themeMode = switch (appMode) {
           AppThemeMode.light => ThemeMode.light,

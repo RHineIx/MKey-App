@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -9,7 +10,6 @@ import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class ArchiveBrowserScreen extends StatefulWidget {
   const ArchiveBrowserScreen({super.key});
-
   @override
   State<ArchiveBrowserScreen> createState() => _ArchiveBrowserScreenState();
 }
@@ -29,13 +29,14 @@ class _ArchiveBrowserScreenState extends State<ArchiveBrowserScreen> {
   }
 
   Future<void> _fetchArchiveList() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingList = true;
       _error = null;
     });
     try {
       final githubService = context.read<GithubService>();
-      final archives = await githubService.getArchiveList();
+      final archives = await githubService.getDirectoryListing('archive');
       archives.sort((a, b) => b.path.compareTo(a.path));
       if (mounted) {
         setState(() {
@@ -54,6 +55,7 @@ class _ArchiveBrowserScreenState extends State<ArchiveBrowserScreen> {
   }
 
   Future<void> _fetchArchiveDetails(String path) async {
+    if (!mounted) return;
     setState(() {
       _isLoadingDetails = true;
       _selectedArchivePath = path;
@@ -62,7 +64,10 @@ class _ArchiveBrowserScreenState extends State<ArchiveBrowserScreen> {
     });
     try {
       final githubService = context.read<GithubService>();
-      final sales = await githubService.fetchArchivedSales(path);
+      final jsonContent = await githubService.fetchFileContent(path);
+      final List<dynamic> decodedList = jsonDecode(jsonContent);
+      final sales = decodedList.map((item) => Sale.fromJson(item)).toList();
+
       if (mounted) {
         setState(() {
           _selectedArchiveContent = sales;

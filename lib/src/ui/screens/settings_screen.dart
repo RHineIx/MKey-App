@@ -1,18 +1,25 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/github_file_model.dart';
+import 'package:rhineix_mkey_app/src/notifiers/activity_log_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/dashboard_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/auth_service.dart';
+import 'package:rhineix_mkey_app/src/services/backup_service.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
+import 'package:rhineix_mkey_app/src/ui/screens/archive_browser_screen.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,6 +32,8 @@ class SettingsScreen extends StatelessWidget {
           _GeneralSettingsCard(),
           SizedBox(height: 16),
           _DataManagementCard(),
+          SizedBox(height: 16),
+          _BackupRestoreCard(),
           SizedBox(height: 16),
           _AccountCard(),
         ],
@@ -43,6 +52,8 @@ class _GeneralSettingsCard extends StatefulWidget {
 class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
   late final TextEditingController _userController;
   late final TextEditingController _exchangeRateController;
+  String _liveExchangeRateStatus = 'جلب السعر الحالي...';
+  num? _fetchedRate;
 
   @override
   void initState() {
@@ -51,6 +62,48 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
     _userController = TextEditingController(text: settings.currentUser);
     _exchangeRateController =
         TextEditingController(text: settings.exchangeRate.toString());
+    _fetchLiveExchangeRate();
+  }
+
+  Future<void> _fetchLiveExchangeRate() async {
+    if (!mounted) return;
+    setState(() {
+      _liveExchangeRateStatus = 'جاري التحميل...';
+      _fetchedRate = null;
+    });
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+          'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+      if (response.statusCode == 200) {
+        final rate = response.data['usd']['iqd'];
+        if (rate is num) {
+          if (!mounted) return;
+          setState(() {
+            _fetchedRate = rate;
+            _liveExchangeRateStatus = 'السعر الحالي: ${rate.round()}';
+          });
+          return;
+        }
+      }
+      throw Exception('Invalid data');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _liveExchangeRateStatus = 'فشل التحديث. انقر للمحاولة مرة أخرى.';
+        _fetchedRate = null;
+      });
+    }
+  }
+
+  void _applyLiveRate() {
+    if (_fetchedRate != null) {
+      _exchangeRateController.text = _fetchedRate!.round().toString();
+      showAppSnackBar(context,
+          message: 'تم تطبيق سعر الصرف الحالي', type: NotificationType.success);
+    } else {
+      _fetchLiveExchangeRate();
+    }
   }
 
   @override
@@ -63,7 +116,7 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
   void _saveSettings() {
     final settings = context.read<SettingsNotifier>();
     settings.saveGeneralConfig(
-      currentUser: _userController.text,
+      currentUser: _userController.text.trim(),
       activeCurrency: settings.activeCurrency,
       exchangeRate: double.tryParse(_exchangeRateController.text) ?? 1460.0,
     );
@@ -81,7 +134,6 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
       AppFontWeight.medium: 2.0,
       AppFontWeight.bold: 3.0,
     };
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -122,7 +174,8 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _userController,
-              decoration: const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
+              decoration:
+              const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -130,7 +183,14 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
               decoration: const InputDecoration(labelText: 'سعر صرف الدولار'),
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _applyLiveRate,
+                child: Text(_liveExchangeRateStatus),
+              ),
+            ),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _saveSettings,
               child: const Text('حفظ الإعدادات العامة'),
@@ -144,6 +204,35 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
 
 class _DataManagementCard extends StatelessWidget {
   const _DataManagementCard();
+
+  Future<void> _handleArchiveSales(BuildContext context) async {
+    final dashboardNotifier = context.read<DashboardNotifier>();
+    final githubService = context.read<GithubService>();
+
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: "تأكيد الأرشفة",
+      content: "سيتم أرشفة جميع المبيعات التي يزيد عمرها عن 90 يومًا. لا يمكن التراجع عن هذا الإجراء بسهولة. هل أنت متأكد؟",
+      confirmText: "نعم, أرشفة",
+      icon: Symbols.archive,
+      isDestructive: false,
+    );
+    if(confirmed != true || !context.mounted) return;
+
+    try {
+      showAppSnackBar(context, message: "جاري أرشفة المبيعات القديمة...", type: NotificationType.syncing);
+      final count = await dashboardNotifier.archiveOldSales(githubService);
+      if(!context.mounted) return;
+      if (count > 0) {
+        showAppSnackBar(context, message: "تمت أرشفة $count سجل مبيعات بنجاح!", type: NotificationType.success);
+      } else {
+        showAppSnackBar(context, message: "لا توجد مبيعات قديمة للأرشفة.", type: NotificationType.info);
+      }
+    } catch (e) {
+      if(!context.mounted) return;
+      showAppSnackBar(context, message: "فشلت عملية الأرشفة: $e", type: NotificationType.error);
+    }
+  }
 
   void _handleImageCleanup(BuildContext context) async {
     final inventoryNotifier = context.read<InventoryNotifier>();
@@ -194,6 +283,7 @@ class _DataManagementCard extends StatelessWidget {
       isDestructive: true,
     );
     if (confirmed != true || !context.mounted) return;
+
     try {
       showAppSnackBar(context,
           message: 'جاري حذف الصور...', type: NotificationType.syncing);
@@ -221,7 +311,22 @@ class _DataManagementCard extends StatelessWidget {
           children: [
             Text('إدارة البيانات', style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
-            // FIXED: Removed the archive browser list tile
+            ListTile(
+              leading: const Icon(Symbols.archive),
+              title: const Text('أرشفة المبيعات القديمة'),
+              subtitle: const Text('نقل المبيعات الأقدم من 90 يومًا إلى GitHub'),
+              onTap: () => _handleArchiveSales(context),
+            ),
+            ListTile(
+              leading: const Icon(Symbols.history_edu),
+              title: const Text('تصفح أرشيف المبيعات'),
+              subtitle: const Text('عرض المبيعات المؤرشفة من GitHub'),
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const ArchiveBrowserScreen(),
+                ));
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.cleaning_services_outlined),
               title: const Text('تنظيف الصور غير المستخدمة'),
@@ -232,9 +337,159 @@ class _DataManagementCard extends StatelessWidget {
             ListTile(
               leading: const Icon(Symbols.cached),
               title: const Text('تنظيف ذاكرة التخزين المؤقت للصور'),
-              subtitle: const Text(
-                  'حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
+              subtitle:
+              const Text('حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
               onTap: () => _handleImageCacheClear(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupRestoreCard extends StatelessWidget {
+  const _BackupRestoreCard();
+
+  Future<void> _handleBackup(BuildContext context) async {
+    final inventoryNotifier = context.read<InventoryNotifier>();
+    final dashboardNotifier = context.read<DashboardNotifier>();
+    final supplierNotifier = context.read<SupplierNotifier>();
+    final activityLogNotifier = context.read<ActivityLogNotifier>();
+    final backupService = context.read<BackupService>();
+
+    if (inventoryNotifier.isLoading ||
+        dashboardNotifier.isLoading ||
+        supplierNotifier.isLoading ||
+        activityLogNotifier.isLoading) {
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message:
+            'البيانات لا تزال قيد التحميل. يرجى الانتظار لحظات ثم المحاولة مرة أخرى.',
+            type: NotificationType.error);
+      }
+      return;
+    }
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (!context.mounted) return;
+
+    final isOffline = connectivityResult.contains(ConnectivityResult.none);
+
+    bool proceedWithBackup = false;
+
+    if (isOffline) {
+      final confirmed = await showConfirmationDialog(
+        context: context,
+        title: 'تنبيه: غير متصل بالإنترنت',
+        content:
+        'أنت غير متصل بالإنترنت حاليًا. النسخة الاحتياطية ستحتوي على آخر بيانات تمت مزامنتها عند وجود اتصال. هل تريد المتابعة على أي حال؟',
+        confirmText: 'نعم، متابعة',
+        icon: Symbols.wifi_off,
+        isDestructive: false,
+      );
+      if (confirmed == true) {
+        proceedWithBackup = true;
+      }
+    } else {
+      proceedWithBackup = true;
+      showAppSnackBar(context,
+          message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...',
+          type: NotificationType.info);
+    }
+
+    if (proceedWithBackup) {
+      try {
+        final savedPath = await backupService.createBackup(
+          products: inventoryNotifier.allProducts,
+          sales: dashboardNotifier.allSales,
+          suppliers: supplierNotifier.suppliers,
+          activityLogs: activityLogNotifier.allLogs,
+        );
+        if (context.mounted && savedPath != null) {
+          showAppSnackBar(context,
+              message: 'تم حفظ النسخة الاحتياطية في: $savedPath',
+              type: NotificationType.success);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          showAppSnackBar(context,
+              message: 'فشل النسخ الاحتياطي: $e',
+              type: NotificationType.error);
+        }
+      }
+    }
+  }
+
+  Future<void> _handleRestore(BuildContext context) async {
+    final backupService = context.read<BackupService>();
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: 'تأكيد الاستعادة',
+      content:
+      'سيؤدي هذا إلى استبدال جميع بياناتك الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟',
+      confirmText: 'نعم، استعادة',
+      isDestructive: true,
+      icon: Symbols.warning,
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await backupService.restoreFromBackup();
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'فشلت عملية الاستعادة: $e',
+            type: NotificationType.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('النسخ الاحتياطي والاستعادة',
+                style: Theme.of(context).textTheme.titleLarge),
+            const Divider(),
+            Consumer<BackupService>(
+              builder: (context, service, child) {
+                if (service.isWorking) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Column(
+                      children: [
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        Text(service.statusMessage,
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  );
+                }
+                return child!;
+              },
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Symbols.download),
+                    title: const Text('إنشاء نسخة احتياطية محلية'),
+                    subtitle:
+                    const Text('حفظ جميع البيانات والصور في ملف ZIP'),
+                    onTap: () => _handleBackup(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Symbols.upload),
+                    title: const Text('استعادة من نسخة احتياطية'),
+                    subtitle: const Text('استعادة البيانات من ملف ZIP'),
+                    onTap: () => _handleRestore(context),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -247,6 +502,7 @@ class _AccountCard extends StatelessWidget {
   const _AccountCard();
 
   void _signOut(BuildContext context) async {
+    final authService = context.read<AuthService>();
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'تسجيل الخروج',
@@ -255,9 +511,8 @@ class _AccountCard extends StatelessWidget {
       icon: Symbols.logout,
       isDestructive: true,
     );
-
     if (confirmed == true && context.mounted) {
-      await context.read<AuthService>().signOut();
+      await authService.signOut();
     }
   }
 

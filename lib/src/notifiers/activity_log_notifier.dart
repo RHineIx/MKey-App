@@ -1,4 +1,4 @@
-import 'dart:async'; // FIXED: Missing import
+import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/activity_log_model.dart';
@@ -6,7 +6,7 @@ import 'package:rhineix_mkey_app/src/services/firestore_service.dart';
 
 class ActivityLogNotifier extends ChangeNotifier {
   FirestoreService _firestoreService;
-  StreamSubscription? _logSubscription; // FIXED: Class was undefined
+  StreamSubscription? _logSubscription;
 
   ActivityLogNotifier(this._firestoreService) {
     _listenToLogs();
@@ -28,6 +28,7 @@ class ActivityLogNotifier extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<ActivityLog> get filteredLogs => _filteredLogs;
+  List<ActivityLog> get allLogs => _allLogs;
   ActivityLogFilter get filter => _filter;
 
   void _listenToLogs() {
@@ -54,7 +55,6 @@ class ActivityLogNotifier extends ChangeNotifier {
   Future<void> clearLogs() async {
     if (!_firestoreService.isReady) return;
     await _firestoreService.clearActivityLogs();
-    // The stream will automatically update the UI
   }
 
   void setFilter(ActivityLogFilter newFilter) {

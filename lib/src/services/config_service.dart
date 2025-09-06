@@ -12,6 +12,18 @@ class ConfigService {
   static const _currencyKey = 'app_currency';
   static const _userKey = 'app_user';
   static const _exchangeRateKey = 'app_exchange_rate';
+  static const _firstLaunchKey = 'app_first_launch';
+
+  Future<bool> checkIsFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    // It's considered the first launch if the key doesn't exist yet.
+    return prefs.getBool(_firstLaunchKey) ?? true;
+  }
+
+  Future<void> markFirstLaunchDone() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_firstLaunchKey, false);
+  }
 
   Future<void> saveGitHubConfig(String username, String repo, String token) async {
     final prefs = await SharedPreferences.getInstance();

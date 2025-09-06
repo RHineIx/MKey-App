@@ -20,6 +20,21 @@ class ActivityLog {
   });
 
   factory ActivityLog.fromJson(Map<String, dynamic> json) {
+    dynamic detailsData = json['details'];
+    Map<String, dynamic> parsedDetails = {};
+
+    if (detailsData is Map) {
+      parsedDetails = Map<String, dynamic>.from(detailsData);
+    } else if (detailsData is String && detailsData.isNotEmpty) {
+      try {
+        // Handle legacy data that was stored as a JSON string
+        parsedDetails = jsonDecode(detailsData);
+      } catch (e) {
+        // If it's not a valid JSON, store it under a generic key
+        parsedDetails = {'legacy_data': detailsData};
+      }
+    }
+
     return ActivityLog(
       id: json['id'],
       timestamp: json['timestamp'],
@@ -27,9 +42,7 @@ class ActivityLog {
       action: json['action'],
       targetId: json['targetId'],
       targetName: json['targetName'],
-      details: json['details'] is Map
-          ? Map<String, dynamic>.from(json['details'])
-          : {},
+      details: parsedDetails,
     );
   }
 
@@ -41,19 +54,12 @@ class ActivityLog {
       'action': action,
       'targetId': targetId,
       'targetName': targetName,
-      'details': jsonEncode(details),
+      'details': details, // Save directly as a map
     };
   }
 
   factory ActivityLog.fromMap(Map<String, dynamic> map) {
-    return ActivityLog(
-      id: map['id'],
-      timestamp: map['timestamp'],
-      user: map['user'],
-      action: map['action'],
-      targetId: map['targetId'],
-      targetName: map['targetName'],
-      details: jsonDecode(map['details']),
-    );
+    // fromJson now handles both map and legacy string data
+    return ActivityLog.fromJson(map);
   }
 }

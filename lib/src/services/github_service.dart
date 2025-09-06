@@ -4,7 +4,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:rhineix_mkey_app/src/core/app_config.dart';
 import 'package:rhineix_mkey_app/src/models/github_file_model.dart';
-import 'package:rhineix_mkey_app/src/models/sale_model.dart';
 
 class GithubService extends ChangeNotifier {
   late final Dio _dio;
@@ -36,32 +35,56 @@ class GithubService extends ChangeNotifier {
 
   Future<String> uploadImage(File imageFile, String sku) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
-    final fileName = 'img_${sku}_${DateTime.now().millisecondsSinceEpoch}.webp';
-    final path = 'images/$fileName';
-    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
 
+    final fileName =
+        'img_${sku}_${DateTime.now().millisecondsSinceEpoch}.webp';
+    final path = 'images/$fileName';
     final bytes = await imageFile.readAsBytes();
+
+    return await uploadFile(path, bytes, 'Upload image');
+  }
+
+  Future<String> uploadFile(String path, Uint8List bytes, String message) async {
+    if (!isConfigured) throw Exception('GitHub service is not configured.');
+
+    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
     final String content = base64.encode(bytes);
 
-    final body = {
-      'message': 'Upload image: $fileName',
+    final body = <String, dynamic>{
+      'message': '$message: ${path.split('/').last}',
       'content': content,
     };
+
+    try {
+      final existingFileResponse =
+      await _dio.get(url, options: Options(headers: authHeaders));
+      if (existingFileResponse.statusCode == 200) {
+        body['sha'] = existingFileResponse.data['sha'];
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 404) {
+        rethrow;
+      }
+    }
+
     final response =
     await _dio.put(url, data: body, options: Options(headers: authHeaders));
-    if (response.statusCode == 201) {
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
       return response.data['content']['path'];
     } else {
       throw Exception(
-          'Failed to upload image: Status code ${response.statusCode}');
+          'Failed to upload file: Status code ${response.statusCode}');
     }
   }
 
   Future<List<GithubFile>> getDirectoryListing(String path) async {
     if (!isConfigured) return [];
     final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
+
     try {
-      final response = await _dio.get(url, options: Options(headers: authHeaders));
+      final response =
+      await _dio.get(url, options: Options(headers: authHeaders));
       if (response.statusCode == 200 && response.data is List) {
         return (response.data as List)
             .map((item) => GithubFile.fromJson(item))
@@ -74,6 +97,22 @@ class GithubService extends ChangeNotifier {
     }
   }
 
+  Future<String> fetchFileContent(String path) async {
+    if (!isConfigured) throw Exception('GitHub service is not configured.');
+    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
+    try {
+      final response =
+      await _dio.get(url, options: Options(headers: authHeaders));
+      if (response.statusCode == 200) {
+        return utf8.decode(base64.decode(response.data['content'].replaceAll('\n', '')));
+      }
+      throw Exception('Failed to fetch file content: Status code ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Failed to fetch file content: $e');
+    }
+  }
+
+
   Future<void> deleteFile(String path, String sha) async {
     if (!isConfigured) throw Exception('GitHub service is not configured.');
     final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
@@ -81,33 +120,13 @@ class GithubService extends ChangeNotifier {
       'message': 'Cleanup: Delete unused file $path',
       'sha': sha,
     };
+
     final response = await _dio.delete(url,
         data: body, options: Options(headers: authHeaders));
+
     if (response.statusCode != 200) {
       throw Exception(
           'Failed to delete file: Status code ${response.statusCode}');
     }
-  }
-
-  Future<List<Sale>> fetchArchivedSales(String path) async {
-    if (!isConfigured) throw Exception('GitHub service is not configured.');
-    final url = 'https://api.github.com/repos/$_username/$_repo/contents/$path';
-    try {
-      final response = await _dio.get(url, options: Options(headers: authHeaders));
-      if (response.statusCode == 200) {
-        final String decodedContent = utf8.decode(base64.decode(response.data['content'].replaceAll('\n', '')));
-        final data = json.decode(decodedContent);
-        if (data is List) {
-          return data.map((item) => Sale.fromJson(item)).toList();
-        }
-      }
-      return [];
-    } catch(e) {
-      throw Exception('Failed to fetch archived sales: $e');
-    }
-  }
-
-  Future<List<GithubFile>> getArchiveList() async {
-    return getDirectoryListing('archive');
   }
 }

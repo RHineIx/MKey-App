@@ -1,9 +1,12 @@
-import 'dart:async'; // FIXED: Missing import
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/models/sale_model.dart';
 import 'package:rhineix_mkey_app/src/services/firestore_service.dart';
+import 'package:rhineix_mkey_app/src/services/github_service.dart';
 
 class Bestseller {
   final String name;
@@ -13,8 +16,8 @@ class Bestseller {
 
 class DashboardNotifier extends ChangeNotifier {
   FirestoreService _firestoreService;
-  StreamSubscription? _salesSubscription; // FIXED: Class was undefined
-  StreamSubscription? _productsSubscription; // FIXED: Class was undefined
+  StreamSubscription? _salesSubscription;
+  StreamSubscription? _productsSubscription;
 
   DashboardNotifier(this._firestoreService) {
     _listenToData();
@@ -38,6 +41,7 @@ class DashboardNotifier extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Sale> get filteredSales => _filteredSales;
+  List<Sale> get allSales => _allSales;
   DashboardPeriod get period => _period;
 
   List<Bestseller> get bestsellers {
@@ -48,7 +52,6 @@ class DashboardNotifier extends ChangeNotifier {
 
     final sortedBestsellers = itemSales.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-
     return sortedBestsellers.take(5).map((entry) {
       final product = _allProducts.firstWhere(
             (p) => p.id == entry.key,
@@ -94,13 +97,10 @@ class DashboardNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  // FIXED: Renamed method to match what UI expects
   Future<void> deleteSale(String saleId) async {
     if (!_firestoreService.isReady) return;
-
     final saleToDelete = _allSales.firstWhere((s) => s.saleId == saleId);
     final productToUpdate = _allProducts.firstWhere((p) => p.id == saleToDelete.itemId);
-
     final updatedProduct = Product(
       id: productToUpdate.id,
       name: productToUpdate.name,
@@ -121,6 +121,32 @@ class DashboardNotifier extends ChangeNotifier {
 
     await _firestoreService.setProduct(updatedProduct);
     await _firestoreService.deleteSale(saleId);
+  }
+
+  Future<int> archiveOldSales(GithubService githubService) async {
+    if (!_firestoreService.isReady || !githubService.isConfigured) {
+      throw Exception('Services not ready for archiving.');
+    }
+
+    final threeMonthsAgo = DateTime.now().subtract(const Duration(days: 90));
+    final salesToArchive = _allSales.where((sale) {
+      final saleDate = DateTime.tryParse(sale.saleDate);
+      return saleDate != null && saleDate.isBefore(threeMonthsAgo);
+    }).toList();
+
+    if (salesToArchive.isEmpty) {
+      return 0;
+    }
+
+    final archiveFileName = 'archive/sales_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.json';
+    final jsonString = jsonEncode(salesToArchive.map((s) => s.toMap()).toList());
+    final fileContent = Uint8List.fromList(utf8.encode(jsonString));
+
+    await githubService.uploadFile(archiveFileName, fileContent, 'Archive sales data');
+
+    await _firestoreService.deleteSalesBatch(salesToArchive);
+
+    return salesToArchive.length;
   }
 
   void setPeriod(DashboardPeriod newPeriod) {

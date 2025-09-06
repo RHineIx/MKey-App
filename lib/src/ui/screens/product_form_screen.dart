@@ -204,9 +204,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       supplierId: _selectedSupplierId,
     );
     try {
-      // FIXED: Use the correct separate methods based on editing state
       if (_isEditing) {
-        await notifier.updateProduct(productData, _imageFile);
+        await notifier.updateProduct(productData, _imageFile, originalProduct: widget.product!);
       } else {
         await notifier.addProduct(productData, _imageFile);
       }
@@ -327,7 +326,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 }
 
                 return DropdownButtonFormField<String>(
-                  // FIXED: Changed value to initialValue to remove linting warning
                   initialValue: _selectedSupplierId,
                   decoration:
                   const InputDecoration(labelText: 'المورّد (اختياري)'),
