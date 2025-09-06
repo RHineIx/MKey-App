@@ -21,7 +21,6 @@ class FirestoreService extends ChangeNotifier {
 
   bool get isReady => uid != null && _firestore != null;
 
-  // FIXED: Renamed from _userDocRef to userDocRef to make it public
   DocumentReference? get userDocRef =>
       isReady ? _firestore!.collection('users').doc(uid) : null;
 
@@ -98,7 +97,9 @@ class FirestoreService extends ChangeNotifier {
         .limit(200)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => ActivityLog.fromJson(doc.data())).toList();
+      return snapshot.docs
+          .map((doc) => ActivityLog.fromJson(doc.data()))
+          .toList();
     });
   }
 
@@ -112,16 +113,69 @@ class FirestoreService extends ChangeNotifier {
 
   Future<void> clearActivityLogs() async {
     if (!isReady) throw Exception("User not authenticated.");
-    final snapshot = await userDocRef!.collection('activity_logs').get();
-    WriteBatch batch = _firestore!.batch();
-    for (var doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
+    await _clearCollection('activity_logs');
   }
 
   Future<void> saveUserFCMToken(String token) async {
     if (!isReady) return;
     await userDocRef!.set({'fcmToken': token}, SetOptions(merge: true));
+  }
+
+  // BACKUP & RESTORE
+  Future<void> _clearCollection(String collectionPath) async {
+    final collection = userDocRef!.collection(collectionPath);
+    final snapshot = await collection.limit(500).get();
+    if (snapshot.docs.isEmpty) return;
+    
+    WriteBatch batch = _firestore!.batch();
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+
+    // Recursively delete if there are more documents
+    if (snapshot.docs.length == 500) {
+      await _clearCollection(collectionPath);
+    }
+  }
+
+  Future<void> performRestore({
+    required List<Product> products,
+    required List<Sale> sales,
+    required List<Supplier> suppliers,
+    required List<ActivityLog> activityLogs,
+  }) async {
+    if (!isReady) throw Exception("User not authenticated.");
+
+    await _clearCollection('products');
+    await _clearCollection('sales');
+    await _clearCollection('suppliers');
+    await _clearCollection('activity_logs');
+    
+    WriteBatch batch = _firestore!.batch();
+    int count = 0;
+
+    for (final product in products) {
+      final docRef = userDocRef!.collection('products').doc(product.id);
+      batch.set(docRef, product.toMapForJson());
+      if (++count % 500 == 0) { await batch.commit(); batch = _firestore!.batch(); }
+    }
+    for (final sale in sales) {
+      final docRef = userDocRef!.collection('sales').doc(sale.saleId);
+      batch.set(docRef, sale.toMap());
+      if (++count % 500 == 0) { await batch.commit(); batch = _firestore!.batch(); }
+    }
+    for (final supplier in suppliers) {
+      final docRef = userDocRef!.collection('suppliers').doc(supplier.id);
+      batch.set(docRef, supplier.toMap());
+      if (++count % 500 == 0) { await batch.commit(); batch = _firestore!.batch(); }
+    }
+    for (final log in activityLogs) {
+      final docRef = userDocRef!.collection('activity_logs').doc(log.id);
+      batch.set(docRef, log.toMap());
+      if (++count % 500 == 0) { await batch.commit(); batch = _firestore!.batch(); }
+    }
+    
+    await batch.commit();
   }
 }

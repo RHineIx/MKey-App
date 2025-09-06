@@ -4,15 +4,18 @@ import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
 import 'package:rhineix_mkey_app/src/models/github_file_model.dart';
+import 'package:rhineix_mkey_app/src/notifiers/activity_log_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/dashboard_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/inventory_notifier.dart';
 import 'package:rhineix_mkey_app/src/notifiers/settings_notifier.dart';
+import 'package:rhineix_mkey_app/src/notifiers/supplier_notifier.dart';
 import 'package:rhineix_mkey_app/src/services/auth_service.dart';
+import 'package:rhineix_mkey_app/src/services/backup_service.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/app_snackbar.dart';
 import 'package:rhineix_mkey_app/src/ui/widgets/confirmation_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,6 +28,8 @@ class SettingsScreen extends StatelessWidget {
           _GeneralSettingsCard(),
           SizedBox(height: 16),
           _DataManagementCard(),
+          SizedBox(height: 16),
+          _BackupRestoreCard(),
           SizedBox(height: 16),
           _AccountCard(),
         ],
@@ -43,7 +48,6 @@ class _GeneralSettingsCard extends StatefulWidget {
 class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
   late final TextEditingController _userController;
   late final TextEditingController _exchangeRateController;
-
   @override
   void initState() {
     super.initState();
@@ -81,7 +85,6 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
       AppFontWeight.medium: 2.0,
       AppFontWeight.bold: 3.0,
     };
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -122,7 +125,8 @@ class _GeneralSettingsCardState extends State<_GeneralSettingsCard> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _userController,
-              decoration: const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
+              decoration:
+                  const InputDecoration(labelText: 'اسم المستخدم (للسجلات)'),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -148,7 +152,7 @@ class _DataManagementCard extends StatelessWidget {
   void _handleImageCleanup(BuildContext context) async {
     final inventoryNotifier = context.read<InventoryNotifier>();
     final List<GithubFile> unusedImages =
-    await inventoryNotifier.findUnusedImages();
+        await inventoryNotifier.findUnusedImages();
 
     if (!context.mounted) return;
     if (unusedImages.isEmpty) {
@@ -162,7 +166,7 @@ class _DataManagementCard extends StatelessWidget {
       context: context,
       title: 'تأكيد الحذف',
       content:
-      'تم العثور على ${unusedImages.length} صورة غير مستخدمة. هل تريد حذفها نهائياً من المستودع؟',
+          'تم العثور على ${unusedImages.length} صورة غير مستخدمة. هل تريد حذفها نهائياً من المستودع؟',
       confirmText: 'نعم، حذف ${unusedImages.length} صورة',
       icon: Symbols.delete_forever,
       isDestructive: true,
@@ -171,7 +175,7 @@ class _DataManagementCard extends StatelessWidget {
 
     try {
       final deletedCount =
-      await inventoryNotifier.deleteUnusedImages(unusedImages);
+          await inventoryNotifier.deleteUnusedImages(unusedImages);
       if (!context.mounted) return;
       showAppSnackBar(context,
           message: 'اكتمل التنظيف. تم حذف $deletedCount صورة بنجاح.',
@@ -188,7 +192,7 @@ class _DataManagementCard extends StatelessWidget {
       context: context,
       title: 'تأكيد حذف الصور المؤقتة',
       content:
-      'سيتم حذف جميع الصور المحفوظة على هذا الجهاز. سيتم إعادة تحميلها عند الحاجة. هل أنت متأكد؟',
+          'سيتم حذف جميع الصور المحفوظة على هذا الجهاز. سيتم إعادة تحميلها عند الحاجة. هل أنت متأكد؟',
       confirmText: 'نعم, حذف',
       icon: Symbols.delete,
       isDestructive: true,
@@ -221,20 +225,111 @@ class _DataManagementCard extends StatelessWidget {
           children: [
             Text('إدارة البيانات', style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
-            // FIXED: Removed the archive browser list tile
             ListTile(
               leading: const Icon(Icons.cleaning_services_outlined),
               title: const Text('تنظيف الصور غير المستخدمة'),
               subtitle:
-              const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
+                  const Text('حذف الصور من المستودع التي لا ترتبط بمنتج'),
               onTap: () => _handleImageCleanup(context),
             ),
             ListTile(
               leading: const Icon(Symbols.cached),
               title: const Text('تنظيف ذاكرة التخزين المؤقت للصور'),
-              subtitle: const Text(
-                  'حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
+              subtitle:
+                  const Text('حذف الصور المحفوظة على هذا الجهاز لتوفير مساحة'),
               onTap: () => _handleImageCacheClear(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupRestoreCard extends StatelessWidget {
+  const _BackupRestoreCard();
+
+  Future<void> _handleBackup(BuildContext context) async {
+    final backupService = context.read<BackupService>();
+    try {
+      await backupService.createBackup(
+        products: context.read<InventoryNotifier>().displayedProducts,
+        sales: context.read<DashboardNotifier>().filteredSales,
+        suppliers: context.read<SupplierNotifier>().suppliers,
+        activityLogs: context.read<ActivityLogNotifier>().filteredLogs,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'فشل النسخ الاحتياطي: $e', type: NotificationType.error);
+      }
+    }
+  }
+
+  Future<void> _handleRestore(BuildContext context) async {
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: 'تأكيد الاستعادة',
+      content:
+          'سيؤدي هذا إلى استبدال جميع بياناتك الحالية بالبيانات الموجودة في ملف النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟',
+      confirmText: 'نعم، استعادة',
+      isDestructive: true,
+    );
+    if (confirmed != true) return;
+    
+    final backupService = context.read<BackupService>();
+    try {
+      await backupService.restoreFromBackup();
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(context,
+            message: 'فشلت عملية الاستعادة: $e', type: NotificationType.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('النسخ الاحتياطي والاستعادة', style: Theme.of(context).textTheme.titleLarge),
+            const Divider(),
+            Consumer<BackupService>(
+              builder: (context, service, child) {
+                if (service.isWorking) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Column(
+                      children: [
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        Text(service.statusMessage, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  );
+                }
+                return child!;
+              },
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Symbols.download),
+                    title: const Text('إنشاء نسخة احتياطية محلية'),
+                    subtitle: const Text('حفظ جميع البيانات والصور في ملف ZIP'),
+                    onTap: () => _handleBackup(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Symbols.upload),
+                    title: const Text('استعادة من نسخة احتياطية'),
+                    subtitle: const Text('استعادة البيانات من ملف ZIP'),
+                    onTap: () => _handleRestore(context),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -255,7 +350,6 @@ class _AccountCard extends StatelessWidget {
       icon: Symbols.logout,
       isDestructive: true,
     );
-
     if (confirmed == true && context.mounted) {
       await context.read<AuthService>().signOut();
     }
