@@ -49,6 +49,7 @@ class InventoryNotifier extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   List<Product> get displayedProducts => _displayedProducts;
+  List<Product> get allProducts => _allProductsFromStream;
   List<String> get categories => _allCategories;
   String? get selectedCategory => _selectedCategory;
   String? get error => _error;
@@ -66,18 +67,18 @@ class InventoryNotifier extends ChangeNotifier {
 
     _productSubscription =
         _firestoreService.getProductsStream().listen((products) {
-          _allProductsFromStream = products;
-          _extractCategories();
-          _applyFiltersAndSort();
-          _loadInitialPage();
-          _isLoading = false;
-          _error = null;
-          notifyListeners();
-        }, onError: (e) {
-          _error = "فشل تحميل المنتجات: $e";
-          _isLoading = false;
-          notifyListeners();
-        });
+      _allProductsFromStream = products;
+      _extractCategories();
+      _applyFiltersAndSort();
+      _loadInitialPage();
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
+    }, onError: (e) {
+      _error = "فشل تحميل المنتجات: $e";
+      _isLoading = false;
+      notifyListeners();
+    });
   }
 
   void _applyFiltersAndSort() {
@@ -205,7 +206,7 @@ class InventoryNotifier extends ChangeNotifier {
 
     if (imageFile != null) {
       final imagePath =
-      await _githubService.uploadImage(imageFile, product.sku);
+          await _githubService.uploadImage(imageFile, product.sku);
       productWithImage = Product(
         id: product.id,
         name: product.name,
@@ -355,7 +356,7 @@ class InventoryNotifier extends ChangeNotifier {
     if (!_firestoreService.isReady) return;
 
     final productToDelete =
-    _allProductsFromStream.firstWhere((p) => p.id == productId);
+        _allProductsFromStream.firstWhere((p) => p.id == productId);
 
     await _firestoreService.deleteProduct(productId);
 
@@ -371,7 +372,7 @@ class InventoryNotifier extends ChangeNotifier {
     if (productToDelete.imagePath != null && _githubService.isConfigured) {
       _githubService.getDirectoryListing('images').then((files) {
         final imageFile = files.firstWhere(
-                (f) => f.path == productToDelete.imagePath,
+            (f) => f.path == productToDelete.imagePath,
             orElse: () => GithubFile(path: '', sha: ''));
         if (imageFile.sha.isNotEmpty) {
           _githubService.deleteFile(imageFile.path, imageFile.sha);
@@ -400,7 +401,7 @@ class InventoryNotifier extends ChangeNotifier {
 
     for (String id in _selectedItemIds) {
       final docRef =
-      _firestoreService.userDocRef!.collection('products').doc(id);
+          _firestoreService.userDocRef!.collection('products').doc(id);
       batch.update(docRef, {'supplierId': newSupplierId});
     }
     await batch.commit();
@@ -412,13 +413,13 @@ class InventoryNotifier extends ChangeNotifier {
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
     final productsToUpdate =
-    _allProductsFromStream.where((p) => p.categories.contains(oldName));
+        _allProductsFromStream.where((p) => p.categories.contains(oldName));
 
     for (final product in productsToUpdate) {
       final docRef =
-      _firestoreService.userDocRef!.collection('products').doc(product.id);
+          _firestoreService.userDocRef!.collection('products').doc(product.id);
       final newCategories =
-      product.categories.map((c) => c == oldName ? newName : c).toList();
+          product.categories.map((c) => c == oldName ? newName : c).toList();
       batch.update(docRef, {'categories': newCategories});
     }
     await batch.commit();
@@ -448,7 +449,7 @@ class InventoryNotifier extends ChangeNotifier {
         .where((p) => p != null)
         .toSet();
     final unused =
-    repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
+        repoImages.where((file) => !usedImagePaths.contains(file.path)).toList();
     return unused;
   }
 
@@ -499,7 +500,7 @@ class InventoryNotifier extends ChangeNotifier {
 
   void _extractCategories() {
     final uniqueCategories =
-    _allProductsFromStream.expand((p) => p.categories).toSet().toList();
+        _allProductsFromStream.expand((p) => p.categories).toSet().toList();
     uniqueCategories.sort();
     _allCategories = uniqueCategories;
   }

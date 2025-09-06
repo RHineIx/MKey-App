@@ -5,14 +5,12 @@ import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:rhineix_mkey_app/src/models/activity_log_model.dart';
 import 'package:rhineix_mkey_app/src/models/product_model.dart';
 import 'package:rhineix_mkey_app/src/models/sale_model.dart';
 import 'package:rhineix_mkey_app/src/models/supplier_model.dart';
 import 'package:rhineix_mkey_app/src/services/firestore_service.dart';
 import 'package:rhineix_mkey_app/src/services/github_service.dart';
-import 'package:share_plus/share_plus.dart';
 
 class BackupService extends ChangeNotifier {
   FirestoreService _firestoreService;
@@ -49,7 +47,7 @@ class BackupService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createBackup({
+  Future<String?> createBackup({
     required List<Product> products,
     required List<Sale> sales,
     required List<Supplier> suppliers,
@@ -95,16 +93,28 @@ class BackupService extends ChangeNotifier {
         throw Exception('فشل إنشاء ملف النسخة الاحتياطية.');
       }
 
-      final tempDir = await getTemporaryDirectory();
-      final fileName = 'mkey_backup_${DateTime.now().toIso8601String().split('T').first}.zip';
-      final file = File('${tempDir.path}/$fileName');
-      await file.writeAsBytes(zipData);
+      _updateStatus('الرجاء اختيار مجلد الحفظ...', working: false);
+      final selectedPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'اختر مجلد لحفظ النسخة الاحتياطية',
+      );
 
-      _updateStatus('جاهز للمشاركة...', working: false);
-      await Share.shareXFiles([XFile(file.path)], subject: 'MKey Backup');
+      if (selectedPath == null) {
+        // User canceled the picker
+        _updateStatus('تم إلغاء الحفظ.', working: false);
+        return null;
+      }
+      
+      _updateStatus('جاري حفظ الملف...');
+      final fileName = 'mkey_backup_${DateTime.now().toIso8601String().split('T').first}.zip';
+      final file = File('$selectedPath/$fileName');
+      await file.writeAsBytes(zipData);
+      
+      return file.path;
 
     } finally {
-      _updateStatus('', working: false);
+       if (_isWorking) {
+         _updateStatus('', working: false);
+       }
     }
   }
 

@@ -13,8 +13,8 @@ class Bestseller {
 
 class DashboardNotifier extends ChangeNotifier {
   FirestoreService _firestoreService;
-  StreamSubscription? _salesSubscription; // FIXED: Class was undefined
-  StreamSubscription? _productsSubscription; // FIXED: Class was undefined
+  StreamSubscription? _salesSubscription;
+  StreamSubscription? _productsSubscription; 
 
   DashboardNotifier(this._firestoreService) {
     _listenToData();
@@ -38,6 +38,7 @@ class DashboardNotifier extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Sale> get filteredSales => _filteredSales;
+  List<Sale> get allSales => _allSales;
   DashboardPeriod get period => _period;
 
   List<Bestseller> get bestsellers {
@@ -48,7 +49,6 @@ class DashboardNotifier extends ChangeNotifier {
 
     final sortedBestsellers = itemSales.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-
     return sortedBestsellers.take(5).map((entry) {
       final product = _allProducts.firstWhere(
             (p) => p.id == entry.key,
@@ -94,13 +94,10 @@ class DashboardNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  // FIXED: Renamed method to match what UI expects
   Future<void> deleteSale(String saleId) async {
     if (!_firestoreService.isReady) return;
-
     final saleToDelete = _allSales.firstWhere((s) => s.saleId == saleId);
     final productToUpdate = _allProducts.firstWhere((p) => p.id == saleToDelete.itemId);
-
     final updatedProduct = Product(
       id: productToUpdate.id,
       name: productToUpdate.name,

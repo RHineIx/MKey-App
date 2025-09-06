@@ -1,5 +1,7 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:rhineix_mkey_app/src/core/custom_cache_manager.dart';
 import 'package:rhineix_mkey_app/src/core/enums.dart';
@@ -249,19 +251,71 @@ class _DataManagementCard extends StatelessWidget {
 class _BackupRestoreCard extends StatelessWidget {
   const _BackupRestoreCard();
 
+  Future<bool> _requestPermission(BuildContext context) async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
+    if (!status.isGranted) {
+      if(context.mounted) {
+        showAppSnackBar(context, message: 'صلاحية الوصول للتخزين مطلوبة لحفظ الملف.', type: NotificationType.error);
+      }
+      return false;
+    }
+    return true;
+  }
+
+
   Future<void> _handleBackup(BuildContext context) async {
+    if (!await _requestPermission(context)) return;
+
     final backupService = context.read<BackupService>();
-    try {
-      await backupService.createBackup(
-        products: context.read<InventoryNotifier>().displayedProducts,
-        sales: context.read<DashboardNotifier>().filteredSales,
-        suppliers: context.read<SupplierNotifier>().suppliers,
-        activityLogs: context.read<ActivityLogNotifier>().filteredLogs,
+    final inventoryNotifier = context.read<InventoryNotifier>();
+    final dashboardNotifier = context.read<DashboardNotifier>();
+    final supplierNotifier = context.read<SupplierNotifier>();
+    final activityLogNotifier = context.read<ActivityLogNotifier>();
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final isOffline = connectivityResult.contains(ConnectivityResult.none);
+    
+    bool proceedWithBackup = false;
+
+    if (isOffline) {
+      if (!context.mounted) return;
+      final confirmed = await showConfirmationDialog(
+        context: context,
+        title: 'تنبيه: غير متصل بالإنترنت',
+        content: 'أنت غير متصل بالإنترنت حاليًا. النسخة الاحتياطية ستحتوي على آخر بيانات تمت مزامنتها عند وجود اتصال. هل تريد المتابعة على أي حال؟',
+        confirmText: 'نعم، متابعة',
+        icon: Symbols.wifi_off,
+        isDestructive: false,
       );
-    } catch (e) {
+      if (confirmed == true) {
+        proceedWithBackup = true;
+      }
+    } else {
+      proceedWithBackup = true;
       if (context.mounted) {
-        showAppSnackBar(context,
-            message: 'فشل النسخ الاحتياطي: $e', type: NotificationType.error);
+        showAppSnackBar(context, message: 'متصل. جاري إنشاء نسخة من أحدث البيانات...', type: NotificationType.info);
+      }
+    }
+
+    if (proceedWithBackup) {
+      try {
+        final savedPath = await backupService.createBackup(
+          products: inventoryNotifier.allProducts,
+          sales: dashboardNotifier.allSales,
+          suppliers: supplierNotifier.suppliers,
+          activityLogs: activityLogNotifier.allLogs,
+        );
+        if (context.mounted && savedPath != null) {
+          showAppSnackBar(context, message: 'تم حفظ النسخة الاحتياطية في: $savedPath', type: NotificationType.success);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          showAppSnackBar(context,
+              message: 'فشل النسخ الاحتياطي: $e', type: NotificationType.error);
+        }
       }
     }
   }
